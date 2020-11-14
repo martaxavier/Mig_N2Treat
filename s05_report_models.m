@@ -1,5 +1,5 @@
 % Create the report heading 
-my_title = strcat(model,' MODELS');
+my_title = strcat(reg_model,' MODELS');
 H1 = get_report_heading(1,my_title);
 add(R,H1) 
 
@@ -70,8 +70,9 @@ for m = 1 : n_metrics
 
         % Load model results for current subject,
         % model pair 
-        model_in = strcat(metric,'_','model.mat');
-        load(fullfile(path_model_in(s,m),model_in));
+        model_in = strcat(metric,'_','model', ...
+            '_',cv_method,'.mat');
+        load(fullfile(path_model_in(s,r),model_in));
         
         % Save estimated deconvolution 
         % delay for current subject 

@@ -6,7 +6,7 @@ iptgetpref('ImshowInitialMagnification');
 % Create a title for the report
 if flag.report ~= 0
     
-    my_title = strcat(model, ' GROUP MODEL STATS');
+    my_title = strcat(reg_model, ' GROUP MODEL STATS');
     H1 = get_report_heading(1,my_title);
     add(R,H1)  
     
@@ -21,6 +21,7 @@ subj_stats = cell(n_metrics,1);
 % Retreive subjects models
 % ------------------------------------------------------------
 
+% Go through metrics 
 for m = 1 : n_metrics
 
     metric = metrics(m);
@@ -45,8 +46,9 @@ for m = 1 : n_metrics
         
         % Load model results for current subject,
         % model pair 
-        model_in = strcat(metric,'_','model.mat');
-        load(fullfile(path_model_in(s,m),model_in));
+        model_in = strcat(metric,'_','model', ...
+            '_',cv_method,'.mat');
+        load(fullfile(path_model_in(s,r),model_in));
         efp(:,s) = model.efp(2:end);    
         
     end % finish looping through subjects 

@@ -11,6 +11,7 @@ clear all
 flag.process_eeg = 0;
 flag.process_bold = 0;
 flag.process_bold_imgs = 0;
+flag.extract_eeg_markers = 0;
 
 % LEVEL 1 
 flag.compute_features = 0;
@@ -21,24 +22,24 @@ flag.frequency_analysis = 0;
 flag.correlation_analysis = 0;
 
 % LEVEL 3
-flag.group_correlation_analysis = 0;
+flag.group_correlation_analysis = 1;
 
 % LEVEL 4
 flag.estimate_acf_order = 0;
 flag.optimize_cv_pars = 0;
 
 % LEVEL 5
-flag.fit_models = 1;
+flag.fit_models = 0;
 flag.report_models = 0;
 
 % LEVEL 6
-flag.group_model_tstats = 0;
+flag.group_model_stats = 0;
 
 % LEVEL 7
 flag.compare_model_performance = 0;
 
 % REPORT 
-flag.report = 1;    % 2 to generate report + report images
+flag.report = 2;    % 2 to generate report + report images
                     % 1 to generate files + report + all images (slow)
                     % 0 to generate only output files 
 
@@ -78,6 +79,8 @@ end
 % -------------------------------------------------
 if flag.process_eeg
     
+    % I HAVE TO REMOVE THESE RETURNS
+    % SINCE THEY LEAVE THE SCRIPT
     % Leave if file generation 
     % flag is turned off 
     if flag.report == 2
@@ -151,6 +154,32 @@ if flag.process_bold_imgs
 end
 
 % -------------------------------------------------
+% Extract EEG markers 
+% -------------------------------------------------
+
+if flag.extract_eeg_markers
+    
+    % Leave if file generation 
+    % flag is turned off 
+    if flag.report == 2
+        return
+    end
+               
+    % Define input/output data/paths
+    data_in = filename.eeg_processed;
+    data_eeg_out = filename.eeg_markers;
+    data_eeg_sub_task_out = filename.eeg_markers_sub_task;
+    data_bold_out = filename.bold_markers;
+    path_data_in = path.eeg_processed;
+    path_data_eeg_out = path.eeg_markers;
+    path_data_bold_out = path.bold_markers;
+    
+    % Run script
+    s00_extract_EEG_markers;
+        
+end
+
+% -------------------------------------------------
 % Compute features 
 % -------------------------------------------------
 all_metrics = metrics;
@@ -171,12 +200,16 @@ if flag.compute_features
             all_metrics));
                
         % Define input/output data/paths
-        data_in = filename.eeg_processed;
+        data_in = filename.eeg_processed;        
+        markers_in = filename.eeg_markers;
+        markers_sub_task_in = filename.eeg_markers_sub_task;
+        path_data_in = path.eeg_processed;
+        path_markers_in = path.eeg_markers;
+    
         data_out = filename.eeg_feature;
         data_out_eeg_fs = filename.eeg_feature_eeg_fs;
         data_out_conv = filename.eeg_feature_conv;
         data_out_delay = filename.eeg_feature_delay;
-        path_data_in = path.eeg_processed;
         path_data_out = path.eeg_feature;
         path_img_out = strcat('IMAGES\',path_data_out);
         
@@ -545,9 +578,9 @@ end
 % comparison of different metrics/groups of metrics
 % (e.g.: deconv/deconv_parcel/conv/delay)
 
-if flag.group_model_tstats
+if flag.compare_model_performance
     
-    %OTHER STATEMENTS 
+    % I'M WORKING ON THIS ONE RN
     s07_compare_model_performance;
     
 end

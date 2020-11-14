@@ -10,8 +10,8 @@
 
 % Subjects 
 subjects = ["sub-patient002" "sub-patient003", ...
-    "sub-patient006","sub-patient007", ...
-    "sub-pilot018"];
+     "sub-patient005", "sub-patient006","sub-patient007", ...
+     "sub-patient008", "sub-pilot015","sub-pilot018"];
 
 % Task          -
 % 'task-rest','task-calib'
@@ -19,7 +19,7 @@ task = "task-calib";
 
 % Sub-task
 % 'sub_task-EO','sub_task-EC'
-sub_task = "sub_task-EC";           
+sub_task = "sub_task-EO";           
 
 % BOLD RSN extraction method
 % 'ic_dmn','avg_dmn'
@@ -63,7 +63,7 @@ plotting_delay = 3;
 
 % Sampling frequency (Hz) 
 fs_eeg = 250;               % EEG original sampling frequency
-fs_bold = 1/1.26;           % BOLD original sampling frequency
+fs_bold = 1/1.26;          % BOLD original sampling frequency
 fs_analysis = 4;            % Analysis intermediate sampling frequency
 
 % Frequency range (Hz)
@@ -76,7 +76,7 @@ highpass_filter = 1;
 lowpass_filter = 40;         
 
 % Supported power and connectivity metrics 
-power_metrics = ["lc4","lc6","rmsf","tp"];
+power_metrics = ["lc4","rmsf","tp"];
 connectivity_metrics = "ipc";
 
 % EEG feature metrics not yet
@@ -128,14 +128,14 @@ switch task
             
             case 'sub_task-EO'
                 
-                markers_sub_task_start = ['EO', 'Rest'];
-                markers_sub_task_stop = 'EC'; 
+                markers_sub_task_start = ["EO", "Rest"];
+                markers_sub_task_stop = "EC"; 
                 sub_task_order = 1;
                 
             case 'sub_task-EC'
                 
-                markers_sub_task_start = 'EC';
-                markers_sub_task_stop = ['EO', 'Rest'];
+                markers_sub_task_start = "EC";
+                markers_sub_task_stop = ["EO", "Rest"];
                 sub_task_order = 2;
                 
         end
@@ -154,6 +154,11 @@ filename.eeg_raw =              "ICremoved.set";
 filename.bold_raw =             strcat(rsn_method,'.txt');
 filename.bold_img_raw =         "filtered_func_data_preprocessed.nii.gz";
 
+% EEG/BOLD Markers
+filename.eeg_markers =          strcat(task,'_timing_file.txt');
+filename.eeg_markers_sub_task = strcat(sub_task,'_timing_file.txt');
+filename.bold_markers =         strcat(task,'_timing_file.txt');
+    
 % EEG/BOLD Processed
 filename.eeg_processed =        "eeg_processed.mat";
 filename.bold_processed =       "bold_processed.txt";
@@ -209,23 +214,28 @@ data_path = {subjects,task,sub_task};
 method_path = {rsn_method,tf_method,reg_models,cv_method};
 
 % EEG/BOLD Raw data
-path.eeg_raw =              strcat('DATA\',fullfile(data_path{:}),'eeg');
-path.bold_raw =             strcat('DATA\',fullfile(data_path{:}),'func');
-path.bold_img_raw =         strcat('DATA\',fullfile(data_path{:}),'func');
+path.eeg_raw =              strcat('DATA\',fullfile(data_path{:}),'\eeg');
+path.bold_raw =             strcat('DATA\',fullfile(data_path{:}),'\func');
+path.bold_img_raw =         strcat('DATA\',fullfile(data_path{:}),'\func');
+
+% EEG/BOLD markers
+path.eeg_markers =          strcat('DATA\',fullfile(data_path{:}),'\eeg');
+path.bold_markers =         strcat('DATA\GROUP\',fullfile...
+                            (data_path{2:3}),'\eeg');
 
 % EEG/BOLD Processed 
-path.eeg_processed =        strcat('DATA\',fullfile(data_path{:}),'eeg');
-path.bold_processed =       strcat('DATA\',fullfile(data_path{:}),'func\', ...
+path.eeg_processed =        strcat('DATA\',fullfile(data_path{:}),'\eeg');
+path.bold_processed =       strcat('DATA\',fullfile(data_path{:}),'\func\', ...
                             rsn_method);
-path.bold_img_processed =   strcat('DATA\',fullfile(data_path{:}),'func');                        
+path.bold_img_processed =   strcat('DATA\',fullfile(data_path{:}),'\func');                        
 
 % EEG/BOLD Derivatives 
 path.eeg_feature =          strcat('DERIVATIVES\',fullfile(data_path{:}), ... 
-                            'eeg\',method_path{2});
+                            '\eeg\',method_path{2});
 path.bold_deconv =          strcat('DERIVATIVES\',fullfile(data_path{:}), ...
-                            'func\',method_path{1});
+                            '\func\',method_path{1});
 path.bold_img_deconv =      strcat('DERIVATIVES\',fullfile(data_path{:}), ...
-                            'func\',method_path{1});
+                            '\func\',method_path{1});
 
 % EEG Frequency 
 path.frequency =            strcat('RESULTS\',fullfile(data_path{:}), ...
@@ -235,7 +245,7 @@ path.frequency =            strcat('RESULTS\',fullfile(data_path{:}), ...
 path.correlation =          strcat('RESULTS\',fullfile(data_path{:}), ...
                             '\correlation_analysis\', ...
                         	fullfile(method_path{1:2}));
-path.corrrelation_group =   strcat('RESULTS\GROUP\', ...
+path.correlation_group =   strcat('RESULTS\GROUP\', ...
                             fullfile(data_path{2:3}), ...
                             '\correlation_analysis\', ...
                             fullfile(method_path{1:2}));
@@ -252,7 +262,7 @@ path.model_group =          strcat('RESULTS\GROUP\', ...
                             '\models\',fullfile(method_path{:}));
 
 % Report
-path.report =               strcat('RESULTS\',fullfile(data_path{2:3}), ...
+path.report =               strcat('REPORTS\',fullfile(data_path{2:3}), ...
                             '\',fullfile(method_path{1:2}));
                         
 % Parameters                         
@@ -266,5 +276,3 @@ path.pars =                 strcat('PARS\',fullfile(data_path{2:3}), ...
 set(groot, 'defaultFigureUnits','normalized');
 set(groot, 'defaultFigurePosition',[0 0 1 1]);
 set(0,'DefaultFigureVisible','off');
-
-

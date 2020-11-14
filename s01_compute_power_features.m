@@ -62,11 +62,15 @@ for m = 1 : length(metrics)
         if ~exist(fullfile('PARS','chanlocs.mat'),'file')
             save(fullfile('PARS','chanlocs.mat'),'chanlocs');
         end
+
+        first_last = dlmread(fullfile(path_markers_in(s),markers_in));
+        sub_task_design = dlmread(fullfile(path_markers_in(s), ...
+            markers_sub_task_in));
         
-        % Extract EEG markers 
-        [first_eeg,last_eeg,sub_task_design] = ...  
-            extract_EEG_markers(EEG,sub_task,markers_task, ...
-        markers_sub_task_start,markers_sub_task_stop);
+        % Assign first and last 
+        % EEG samples
+        first_eeg = first_last(1); 
+        last_eeg = first_last(end);
         
         % Create output directories if non-existent 
         if ~exist(path_data_out(s), 'dir'); mkdir(path_data_out(s)); end
@@ -360,16 +364,16 @@ for m = 1 : length(metrics)
                 feature_out = strcat(eeg_metric,'_',data_out);
                 feature_out_eeg_fs = ...
                     strcat(eeg_metric,'_',data_out_eeg_fs);
-                data_out_delay = ...
-                    strcat(eeg_metric,'_',feature_conv_out);
+                feature_out_delay = ...
+                    strcat(eeg_metric,'_',data_out_conv);
 
             case 'delay'
 
                 feature_out = strcat(eeg_metric,'_',data_out);
                 feature_out_eeg_fs = ...
                     strcat(eeg_metric,'_',data_out_eeg_fs);
-                data_out_delay = ...
-                    strcat(eeg_metric,'_',feature_delay_out);
+                feature_out_delay = ...
+                    strcat(eeg_metric,'_',data_out_delay);
                 
             case ''
                 
@@ -388,7 +392,7 @@ for m = 1 : length(metrics)
         
         if ~strcmp(eeg_shift,"")
             dlmwrite(fullfile(path_data_out(s), ...
-                data_out_delay),eeg_features_delay_norm);
+                feature_out_delay),eeg_features_delay_norm);
         end
 
     end % finish looping through subjects 

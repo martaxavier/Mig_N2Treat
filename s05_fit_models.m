@@ -98,9 +98,9 @@ for m = 1 : length(metrics)
 
         % Define output data according to current metric 
         model_out=strcat(metric,'_','model_', ...
-           eeg_shift,'_',cv,'.mat'); 
+           cv_method,'.mat'); 
         model_folds_out=strcat(metric,'_', ...
-            'model_folds_',eeg_shift,'_',cv,'.mat'); 
+            'model_folds_',cv_method,'.mat'); 
 
         % Save model and optimal structs in .mat files 
         save(fullfile(path_data_out(s),model_out),'model');

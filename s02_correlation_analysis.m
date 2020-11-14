@@ -170,10 +170,10 @@ end
 % against the alternative hypothesis of a
 % nonzero correlation
 
-if length(BOLD) ~= size(EEG,1)
-    paddsize = length(BOLD) - size(EEG,1);
-    EEG = padarray(EEG,paddsize,'symmetric','post');
-end
+% if length(BOLD) ~= size(EEG,1)
+%     paddsize = length(BOLD) - size(EEG,1);
+%     EEG = padarray(EEG,paddsize,'symmetric','post');
+% end
 [rho,pval] = corr(EEG,BOLD);
 
 % Prepare output
