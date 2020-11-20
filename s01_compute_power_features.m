@@ -1,36 +1,29 @@
-% Computes the EEG features to be used as the model's design matrix X
+% Computes the EEG power features to be used as the model's design
+% matrix X
 %
 % 	The method here implemented is as follows: 
 %
-%       1)  Time-frequency decomposition of the
-%           EEG data at each channel
+%       1)  Time-frequency decomposition of the EEG data at each
+%           channel
 %
-%       2)  Computation of the specified EEG features  
-%           from the time-frequency spectrum of the 
-%           EEG data 
+%       2)  Computation of the specified EEG features from the 
+%           time-frequency spectrum of the EEG data 
 %
-%       3)  Convolution of all features with a range 
-%           of HRFs/ shifting of all features with a 
-%           range of delays 
+%       3)  Convolution of all features with a range of HRFs/
+%           shifting of all features with a range of delays 
 %
-%       4)  Prunning of all features according to the 
-%           beginning and end of the simultaneous BOLD
-%           acquisitio/ according to the current task 
-%           design
+%       4)  Prunning of all features according to the beginning 
+%           and end of the simultaneous BOLD acquisition/ according
+%           to the current task design 
 %
-%       5)  Downsampling of all EEG features to the
-%           analysis' sampling frequency 
+%       5)  Downsampling of all EEG features to the analysis's fs
 %
-%       6)  Normalization of all EEG features to have 
-%           0 mean and standard deviation 1
+%       6)  Normalization of all EEG features to have 0 mean and 
+%           standard deviation 1
 %
 
-%------------------------------------------------------------    
-% Analysis parameters
-%------------------------------------------------------------
-
-kernel_size = 32;               % size of hrf kernel (seconds)
-fs = fs_analysis;               % intermediate samping frequency (Hz)
+% Intermediate fs (Hz)
+fs = fs_analysis;           
 
 %------------------------------------------------------------    
 % Go through metrics
@@ -55,6 +48,10 @@ for m = 1 : length(metrics)
         % Load data 
         %--------------------------------------------------------- 
 
+        % Create output directories if non-existent 
+        if ~exist(path_data_out(s), 'dir'); mkdir(path_data_out(s)); end
+        if ~exist(path_img_out(s), 'dir'); mkdir(path_img_out(s)); end   
+        
         % Load eeg dataset of specified subject 
         load(fullfile(path_data_in(s),data_in));
         
@@ -64,17 +61,16 @@ for m = 1 : length(metrics)
         end
 
         first_last = dlmread(fullfile(path_markers_in(s),markers_in));
-        sub_task_design = dlmread(fullfile(path_markers_in(s), ...
-            markers_sub_task_in));
+        
+        my_file = fullfile(path_markers_in(s), markers_sub_task_in);
+        if exist(my_file,'file')
+            sub_task_design = dlmread(my_file);
+        end
         
         % Assign first and last 
         % EEG samples
         first_eeg = first_last(1); 
-        last_eeg = first_last(end);
-        
-        % Create output directories if non-existent 
-        if ~exist(path_data_out(s), 'dir'); mkdir(path_data_out(s)); end
-        if ~exist(path_img_out(s), 'dir'); mkdir(path_img_out(s)); end    
+        last_eeg = first_last(end); 
 
         % Extract EEG data from dataset
         data = EEG.data;                 
@@ -87,9 +83,11 @@ for m = 1 : length(metrics)
         % TF decomposition to extract power 
         %---------------------------------------------------------
         
-        [power,f_vector] = extract_power...
-            (data,[fmin fmax], n_freq, tf_method, ...
+        [power, f_vector] = tf_analysis_power_spectrum...
+            (data,[f_min f_max], n_freq, tf_method, ...
+            tf_wavelet_kernel_seconds, tf_sliding_window_seconds, ...
             fs_eeg, fs); 
+ 
         n_pnts = size(power,2);
 
         %---------------------------------------------------------    
@@ -97,22 +95,14 @@ for m = 1 : length(metrics)
         %---------------------------------------------------------
 
         get_metric_pars
-        eeg_features = zeros(n_pnts,n_chans,n_bands);
 
         % Lin comb of power 
         % across frequency bands 
         if n_bands > 1 
 
-            for b = 1 : n_bands
-
-                % Assign frequency bands indices 
-                band_idx = find(f_vector>=bands(1,b) ...
-                    & f_vector<bands(2,b));
-
-                % Compute average power across current frequency band 
-                eeg_features(:,:,b) = mean(power(band_idx,:,:),1);
-
-            end
+            % Average power across frequency bands
+            eeg_features = average_frequency(power, ...
+                f_vector, bands);
 
         % Total power 
         elseif contains(metric,'tp')
@@ -126,6 +116,7 @@ for m = 1 : length(metrics)
             % Compute root mean square frequency
             eeg_features = squeeze(sqrt(sum(repmat...
                 ((f_vector'.^2),1,n_pnts).*power,1)));
+            
         end
 
 
@@ -133,55 +124,53 @@ for m = 1 : length(metrics)
         % Remove outliers 
         %---------------------------------------------------------
 
-        % Remove samples that are 10 times greater
-        % than the signal's standard deviation 
+        % Remove feature time-points that are 10 times greater
+        % than the features' standard deviation 
         
-        % Reshape feature matrix to have one
-        % feature at each column 
-        eeg_features = reshape(eeg_features, ...
-            [n_pnts, numel(eeg_features(1,:,:))]);
+        % Reshape the feature matrix to have 2 dimensions 
+        eeg_features = reshape(eeg_features,[n_pnts, ...
+            numel(eeg_features(1, :, :, :))]);
         
-        % Go through columns and replace 
-        % outliers at each column 
-        for c = 1 : size(eeg_features,2)
-            
-            col = eeg_features(:,c);
-            col(col>10*std(col)) = 10*std(col);
-            eeg_features(:,c) = col;
-         
-        end
-
-        % Reshape feature matrix into its 
-        % original dimension 
-        eeg_features = reshape(eeg_features, ...
-            [n_pnts,n_chans,n_bands]);
+        % Define the outlier threshold for each feature 
+        out_thresh = repmat(10*std(features),[n_pnts 1]);
+        eeg_features(eeg_features>out_thresh) = out_thresh;
+        
+        % Reshape feature matrix into its original dimension 
+        eeg_features = reshape(eeg_features, [n_pnts dim]);
 
         %---------------------------------------------------------    
         % Mirror padd the signal before convolution  
         %---------------------------------------------------------
 
-        % Assign first and last indices
-        % according to the current sampling
-        % frequency of the data 
+        % Assign current first and last indices according
+        % to the current sampling frequency of the data 
         if strcmp(tf_method,'welch')
-            f = first; l = last;
+            
+            first_current = first; 
+            last_current = last;
+            fs_current = fs;
+            
         elseif strcmp(tf_method,'wavelet')
-            f = first_eeg; l = last_eeg;
+            
+            first_current = first_eeg; 
+            last_current = last_eeg;
+            fs_current = fs_eeg;
+            
         end
 
-        % Mirror padd the signal at a length
-        % equal to kernal size + 1 (seconds)
-        eeg_features = eeg_features(f:l,:,:);
+        % Mirror padd the feature at a length equal to the 
+        % HRF kernal size + 1 (seconds)
+        eeg_features = eeg_features(first_current:last_current, :, :);
 
         % Padd feature in the pre-direction 
-        padsize = max(f-1,kernel_size*fs_eeg);
-        eeg_features = padarray(eeg_features, ...
-            padsize,'symmetric','pre');
+        padsize = max(first_current-1, hrf_kernel_seconds*fs_current);
+        eeg_features = padarray(eeg_features, padsize, ...
+            'symmetric', 'pre');
 
         % Padd feature in the post-direction
-        padsize = max(n_pnts-l,kernel_size*fs_eeg);
-        eeg_features = padarray(eeg_features, ...
-            padsize,'symmetric','post');
+        padsize = max(n_pnts-last_current, hrf_kernel_seconds*fs_current);
+        eeg_features = padarray(eeg_features, padsize, ...
+            'symmetric', 'post');
 
         %---------------------------------------------------------    
         % Convolution with HRF or delay
@@ -191,53 +180,71 @@ for m = 1 : length(metrics)
 
             case 'conv'
 
+                % Specify label for plotting 
                 plotting_shift = 'convolved';
-                eeg_features_delay = convolve_features(eeg_features, ...
-                    fs_eeg,delays,kernel_size);
+                
+                % Convolve features with the specified family of HRFs 
+                eeg_features_delayed = convolve_features(eeg_features, ...
+                    fs_current, delays, hrf_kernel_seconds);
 
-                % Cut the eeg predictor matrices to   
-                % match the bold acquisition times 
-                eeg_features = eeg_features(f:l,:,:);
-                eeg_features_delay = eeg_features_delay(f:l,:,:,:);
+                % Permute resulting matrix to have bands at the end
+                if n_bands > 1
+                    siz = eeg_features_delayed;
+                    eeg_features_delayed = permute...
+                        (eeg_features_delayed, ...
+                        [siz(1:end-2) siz(end) siz(end-1)]);
+                end
+                
+                % Prune the features to match the BOLD acquisition
+                % times
+                eeg_features_delayed = eeg_features_delayed...
+                    (first_current:last_current, :, :, :);
 
             case 'delay'
 
+                % Specify label for plotting 
                 plotting_shift = 'delayed';
-                eeg_features_delay = delay_features(eeg_features, ...
-                    fs_eeg,delays,[f,l]); 
+                
+                % Shift features by the specified range of delays 
+                eeg_features_delayed = delay_features(eeg_features, ...
+                    fs_current, delays, [first_current,last_current]); 
+                
+                % Prune the features to match the BOLD acquisition
+                % times
+                eeg_features_delayed = eeg_features_delayed...
+                    (first_current:last_current, :, :, :, :);
 
-                % Cut the eeg predictor matrix to   
-                % match the bold acquisition times 
-                eeg_features = eeg_features(f:l,:,:);
-
-            case ''
-
-                % Cut the eeg predictor matrices to   
-                % match the bold acquisition times 
-                eeg_features = eeg_features(f:l,:,:);
-
-        end  
+        end
         
-        n_pnts_eeg = length(f:l);
+        % Prune the original features to match the BOLD acquisition times
+        eeg_features = eeg_features(first_current : last_current, :, :);
 
         %---------------------------------------------------------    
         % Prune according to the task design (case sub_task)
         %---------------------------------------------------------
-        if sub_task ~= ""
+        
+        if ~isempty(sub_task)
             
-            sub_task_design = sub_task_design(f:l);
-            eeg_features = eeg_features(logical(sub_task_design),:,:);
+            % Prune the sub_task_design to match the duration 
+            % of the task 
+            sub_task_design = sub_task_design(first_current : ...
+                last_current);
             
-            if ~strcmp(eeg_shift,"")
+            % Prune the original features according to the
+            % sub-task design 
+            eeg_features = eeg_features(logical(sub_task_design), ...
+                :, :);
+            
+            if ~isempty(eeg_shift)
                 
-                eeg_features_delay = eeg_features_delay...
-                    (logical(sub_task_design),:,:,:);
+                % Prune the delayed features according to the 
+                % sub-task design 
+                eeg_features_delayed = eeg_features_delayed...
+                    (logical(sub_task_design), :, :, :);
                 
             end
             
-            n_pnts_eeg = size(eeg_features,1);
         end
-        
 
         %---------------------------------------------------------    
         % Downsample to intermediate frequency
@@ -247,19 +254,27 @@ for m = 1 : length(metrics)
         % the original EEG sampling frequency 
         eeg_features_eeg_fs = eeg_features;
         
+        % Update the number of time-points and 
+        % and the time vector according to the 
+        % current sampling frequency
+        n_pnts_current = size(eeg_features,1);
+        time_current = 0 : 1/fs_current : ...
+            (n_pnts_current - 1)/fs_current;
+        
         switch tf_method
 
             case 'welch'
 
-               % Assign time vector and # of points 
-               n_pnts = length(first:last);
-               time = 0 : 1/fs_eeg : (n_pnts-1)/fs_eeg;
+               % If the Welch method was used, the 
+               % data was already downsampled 
+               n_pnts = n_pnts_current;
+               time = time_current;
 
             case 'wavelet'
-
-                % Assign time vectors and # of points 
-                time_eeg = 0 : 1/fs_eeg : (n_pnts_eeg-1)/fs_eeg;      
-                time = 0 : 1/fs : (n_pnts_eeg-1)/fs_eeg; 
+                
+                % If Morlet wavelet decomposition was used, the 
+                % data is yet in the original sampling frequency 
+                time = 0 : 1/fs : (n_pnts_current-1)/fs_current; 
                 n_pnts = length(time);
 
                 % Use spline interpolation to downsample features 
@@ -267,14 +282,14 @@ for m = 1 : length(metrics)
                 eeg_features = spline(time_eeg, eeg_features, time);         
                 eeg_features = permute(eeg_features, [3 2 1]);                
 
-                if ~strcmp(eeg_shift,"")
+                if ~isempty(eeg_shift)
                     
-                    eeg_features_delay = ...
-                        permute(eeg_features_delay, [4 3 2 1]);    
-                    eeg_features_delay = ...
-                        spline(time_eeg, eeg_features_delay, time);
-                    eeg_features_delay = ...
-                        permute(eeg_features_delay, [4 3 2 1]);  
+                    eeg_features_delayed = ...
+                        permute(eeg_features_delayed, [4 3 2 1]);    
+                    eeg_features_delayed = ...
+                        spline(time_eeg, eeg_features_delayed, time);
+                    eeg_features_delayed = ...
+                        permute(eeg_features_delayed, [4 3 2 1]);  
                     
                 end
                 
@@ -289,14 +304,13 @@ for m = 1 : length(metrics)
         % zero mean and standard deviation one
         eeg_features_norm = zscore(eeg_features);
 
-        if ~strcmp(eeg_shift,"")
+        if ~isempty(eeg_shift)
        
-            eeg_features_delay_norm = ...
-                zscore(reshape(eeg_features_delay, ...
-                [n_pnts, numel(eeg_features_delay(1,:,:,:))]));
-            eeg_features_delay_norm = ...
-                reshape(eeg_features_delay_norm, ...
-                size(eeg_features_delay));
+            eeg_features_delayed_norm = zscore(reshape...
+                (eeg_features_delayed, [n_pnts, numel...
+                (eeg_features_delayed(1, :, :, :))]));
+            eeg_features_delayed_norm = reshape...
+                (eeg_features_delayed_norm, size(eeg_features_delayed));
             
         end
 
@@ -304,7 +318,7 @@ for m = 1 : length(metrics)
         % Plot features (after normalization)
         %---------------------------------------------------------
         
-        if ~strcmp(eeg_shift,"") && flag.report ~= 0
+        if ~isempty(eeg_shift) && flag.report ~= 0
             
             for c = 1 : n_chans
 
@@ -316,7 +330,7 @@ for m = 1 : length(metrics)
                     figure('Name',figure_name)
 
                     plot(time, eeg_features_norm(:,c,b)); hold on; 
-                    plot(time, eeg_features_delay_norm(:,c, ...
+                    plot(time, eeg_features_delayed_norm(:,c, ...
                         plotting_delay,b));
 
                     title(strcat(id_bands(b), ' feature of'," ", ...
@@ -348,11 +362,11 @@ for m = 1 : length(metrics)
         eeg_features_eeg_fs = reshape(eeg_features_eeg_fs, ...
             [n_pnts_eeg,numel(eeg_features_eeg_fs(1,:,:))]);
         
-        if ~strcmp(eeg_shift,"")
+        if ~isempty(eeg_shift)
             
-            eeg_features_delay_norm = ...
-                reshape(eeg_features_delay_norm, ...
-                [n_pnts,numel(eeg_features_delay_norm(1,:,:,:))]);
+            eeg_features_delayed_norm = ...
+                reshape(eeg_features_delayed_norm, ...
+                [n_pnts,numel(eeg_features_delayed_norm(1,:,:,:))]);
             
         end
         
@@ -390,9 +404,9 @@ for m = 1 : length(metrics)
         dlmwrite(fullfile(path_data_out(s), ...
             feature_out_eeg_fs),eeg_features_eeg_fs);
         
-        if ~strcmp(eeg_shift,"")
+        if ~isempty(eeg_shift)
             dlmwrite(fullfile(path_data_out(s), ...
-                feature_out_delay),eeg_features_delay_norm);
+                feature_out_delay),eeg_features_delayed_norm);
         end
 
     end % finish looping through subjects 

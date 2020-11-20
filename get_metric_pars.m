@@ -312,4 +312,26 @@ switch metric
         n_bands =       size(bands,2);
         dim =           [n_chans, n_delays, n_bands]; 
         
+    case 'icoh'
+        
+        % ================================================
+        % ICOH (Imaginary Part of Coherency)           
+        % ================================================
+
+        id =            'icoh';
+        eeg_metric =    'icoh';
+        eeg_shift =     'conv';
+        bold_shift =    '';
+        chans =         1:31;
+        bands =         [1 4; 4 8; 8 12; 12 30]';
+        delays =        [2 4 5 6 8 10];
+        id_chans =      labels;
+        id_chans2 =     [];
+        id_delays =     ["2", "4", "5", "6", "8", "10"];
+        id_bands =      ["Delta", "Theta", "Alpha", "Beta"];
+        n_chans =       length(chans);
+        n_delays =      length(delays);
+        n_bands =       size(bands,2);
+        dim =           [n_chans, n_chans, n_delays, n_bands];        
+        
 end

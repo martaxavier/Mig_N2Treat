@@ -14,7 +14,7 @@ flag.process_bold_imgs = 0;
 flag.extract_eeg_markers = 0;
 
 % LEVEL 1 
-flag.compute_features = 0;
+flag.compute_features = 1;
 flag.deconvolve_bold = 0;
 
 % LEVEL 2
@@ -22,7 +22,7 @@ flag.frequency_analysis = 0;
 flag.correlation_analysis = 0;
 
 % LEVEL 3
-flag.group_correlation_analysis = 1;
+flag.group_correlation_analysis = 0;
 
 % LEVEL 4
 flag.estimate_acf_order = 0;
@@ -39,7 +39,7 @@ flag.group_model_stats = 0;
 flag.compare_model_performance = 0;
 
 % REPORT 
-flag.report = 2;    % 2 to generate report + report images
+flag.report = 1;    % 2 to generate report + report images
                     % 1 to generate files + report + all images (slow)
                     % 0 to generate only output files 
 
@@ -191,6 +191,20 @@ if flag.compute_features
         return
     end
     
+    % Define input/output data/paths
+    data_in = filename.eeg_processed;        
+    markers_in = filename.eeg_markers;
+    markers_sub_task_in = filename.eeg_markers_sub_task;
+    path_data_in = path.eeg_processed;
+    path_markers_in = path.eeg_markers;
+
+    data_out = filename.eeg_feature;
+    data_out_eeg_fs = filename.eeg_feature_eeg_fs;
+    data_out_conv = filename.eeg_feature_conv;
+    data_out_delay = filename.eeg_feature_delay;
+    path_data_out = path.eeg_feature;
+    path_img_out = strcat('IMAGES\',path_data_out);
+        
     % Compute power features if any supported
     % power feature metric exists in metrics 
     if max(contains(power_metrics,all_metrics))
@@ -198,23 +212,22 @@ if flag.compute_features
         % Find metrics that belong to the power_metrics 
         metrics = power_metrics(contains(power_metrics, ...
             all_metrics));
-               
-        % Define input/output data/paths
-        data_in = filename.eeg_processed;        
-        markers_in = filename.eeg_markers;
-        markers_sub_task_in = filename.eeg_markers_sub_task;
-        path_data_in = path.eeg_processed;
-        path_markers_in = path.eeg_markers;
-    
-        data_out = filename.eeg_feature;
-        data_out_eeg_fs = filename.eeg_feature_eeg_fs;
-        data_out_conv = filename.eeg_feature_conv;
-        data_out_delay = filename.eeg_feature_delay;
-        path_data_out = path.eeg_feature;
-        path_img_out = strcat('IMAGES\',path_data_out);
-        
+
         % Run script
         s01_compute_power_features;
+        
+    end
+    
+    % Compute power features if any supported
+    % connectivity feature metric exists in metrics 
+    if max(contains(connectivity_metrics,all_metrics))
+        
+        % Find metrics that belong to the power_metrics 
+        metrics = connectivity_metrics(contains(...
+            connectivity_metrics,all_metrics));
+        
+        % Run script
+        s01_compute_connectivity_features;
         
     end
     
@@ -511,7 +524,7 @@ if flag.report_models
 
         % Create the report object
         my_report = strcat('RESULTS -', ...
-            " ",reg_model,' MODELS');
+            " ",upper(reg_model),' MODELS');
         R = Report(my_report,'pdf');
         R.Layout.Landscape = true;
         R.OutputPath = strcat(path_report_out, ...
@@ -533,12 +546,6 @@ end
 
 if flag.group_model_stats
     
-    % Leave if image generation
-    % flag is turned off 
-    if flag.report == 0
-        return
-    end 
-    
     % Define input/output data/paths  
     data_out = filename.model_group;
     path_data_in = path.model;
@@ -553,19 +560,26 @@ if flag.group_model_stats
         
         reg_model = reg_models(r);
 
-        % Create the report object 
-        my_report = strcat('RESULTS -', ...
-            " ",reg_model,' MODELS GROUP');
-        R = Report(my_report,'pdf');
-        R.Layout.Landscape = true;
-        R.OutputPath = strcat(path_report_out, ...
-            '\',my_report);
-        open(R)
+        if flag.report ~= 0
+            
+            % Create the report object 
+            my_report = strcat('RESULTS -', ...
+                " ",upper(reg_model), ...
+                ' GROUP MODELS');
+            R = Report(my_report,'pdf');
+            R.Layout.Landscape = true;
+            R.OutputPath = strcat(path_report_out, ...
+                '\',my_report);
+            open(R)
   
-        % Run script 
-        s06_group_model_tstats;
+        end
         
-        close(R);
+        % Run script 
+        s06_group_model_stats;
+        
+        if flag.report ~= 0
+            close(R);
+        end
         
     end
     
@@ -575,13 +589,32 @@ end
 % Performance of EEG-BOLD Models 
 % -------------------------------------------------
 
-% comparison of different metrics/groups of metrics
-% (e.g.: deconv/deconv_parcel/conv/delay)
-
 if flag.compare_model_performance
     
-    % I'M WORKING ON THIS ONE RN
+    % Define input/output data/paths
+    path_data_in = path.model; 
+    path_data_out = path.compare_performance; 
+    path_img_out = strcat('IMAGES\',path_data_out);
+    path_report_out = path.report;
+    
+     if flag.report ~= 0
+            
+        % Create the report object 
+        my_report = strcat('RESULTS - ', ...
+            ' MODELS PERFORMANCE COMPARISON');
+        R = Report(my_report,'pdf');
+        R.Layout.Landscape = true;
+        R.OutputPath = strcat(path_report_out, ...
+            '\',my_report);
+        open(R)
+  
+     end
+        
     s07_compare_model_performance;
+    
+    if flag.report ~= 0
+        close(R);
+    end
     
 end
 

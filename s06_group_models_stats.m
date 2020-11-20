@@ -129,7 +129,7 @@ end % finish looping through metrics
 %/////////////////////////////////////////////////////////////
 
 % ============================================================
-% [group_stats] = perform_group_analysis(subject_stats)           
+% [group_stats] = perform_group_analysis(subj_efp)           
 % ============================================================
 
 function [group_stats] = perform_group_analysis(subj_efp)

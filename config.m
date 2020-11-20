@@ -15,11 +15,11 @@ subjects = ["sub-patient002" "sub-patient003", ...
 
 % Task          -
 % 'task-rest','task-calib'
-task = "task-calib"; 
+task = "task-rest"; 
 
 % Sub-task
 % 'sub_task-EO','sub_task-EC'
-sub_task = "sub_task-EO";           
+sub_task = '';           
 
 % BOLD RSN extraction method
 % 'ic_dmn','avg_dmn'
@@ -35,7 +35,7 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-metrics = ["lc4" "rmsf" "tp"];
+metrics = ["icoh"];
 
 % Regression models 
 % 'l21_1','elasticnet'
@@ -63,21 +63,28 @@ plotting_delay = 3;
 
 % Sampling frequency (Hz) 
 fs_eeg = 250;               % EEG original sampling frequency
-fs_bold = 1/1.26;          % BOLD original sampling frequency
+fs_bold = 1/1.26;           % BOLD original sampling frequency
 fs_analysis = 4;            % Analysis intermediate sampling frequency
 
 % Frequency range (Hz)
-fmin = 1;
-fmax = 30;
+f_min = 1;
+f_max = 30;
 n_freq = 100;
 
 % EEG filters (Hz)
 highpass_filter = 1;          
 lowpass_filter = 40;         
 
+% Windows for TF decomposition 
+tf_sliding_window_seconds = 4;  
+tf_wavelet_kernel_seconds = 2;     
+
+% Window for HRF convolution 
+hrf_kernel_seconds = 32;       
+
 % Supported power and connectivity metrics 
 power_metrics = ["lc4","rmsf","tp"];
-connectivity_metrics = "ipc";
+connectivity_metrics = ["icoh","icoh_wnd"];
 
 % EEG feature metrics not yet
 % supported for fitting 
@@ -260,7 +267,16 @@ path.model =                strcat(pre,suf);
 path.model_group =          strcat('RESULTS\GROUP\', ...
                             fullfile(data_path{2:3}), ...
                             '\models\',fullfile(method_path{:}));
-
+                        
+                        
+% Model Performance 
+cat =                       [fullfile(method_path{:}) strcat(fullfile...
+                            (method_path{1:2}),'\',strjoin(reg_models, ...
+                            "_vs_"),'\',cv_method)];
+path.compare_performance =  strcat('RESULTS\GROUP\', ...
+                            fullfile(data_path{2:3}), ...
+                            '\performance\',cat);                                       
+                        
 % Report
 path.report =               strcat('REPORTS\',fullfile(data_path{2:3}), ...
                             '\',fullfile(method_path{1:2}));

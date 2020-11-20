@@ -1,774 +1,315 @@
-% Computes connectivity measures between all pairs of EEG electrodes,
-% using the function FT_connectivityanalysis of the fieldtrip toolbox
+% Computes the EEG connectivity features to be used as the model's
+% design matrix X
 %
-% PIPELINE:
+% 	The method here implemented is as follows: 
 %
-% 1. time-frequency decomposition for all N time-points (fs=250Hz);
+%       1)  Time-frequency decomposition of the EEG data at each
+%           channel to obtain the cross-spectrum at each pair of 
+%           channels - and simultaneous downsampling the the EEG
+%           data to the analysis's sampling frequency (welch method)
 %
-% 2. remove NaN values from resulting fourier spectrum;
+%       2)  Computation of the specified connectivity metrics from
+%           the cross-spectra and averaging across frequency bands
 %
-% 3. downsample the fourier spectrum to intermediate fs (fs=4Hz)
+%       3)  Convolution of all features with a range of HRFs/ 
+%           shifting of all the features with a range of delays 
 %
-% 4. compute the connectivity measure for each time-point (fs=250Hz)
-%    to obtain a CHANNEL (31) x CHANNEL(31) x BAND(5) x TIME(N) matrix 
+%       4)  Prunning of all features according to match the 
+%           beginning and end of the simultaneous BOLD acquisition/
+%           according to the current task design
 %
-% 5. average the fourier spectrum, in each time-point, across bands 
-%    to obtain a CHANNEL(31) x BAND(5) x TIME(N) matrix 
-% 
-% 6. convolve all connectivity predictors with hrf (6 delays)
-% 
-% 7. cut all predictors from first to last sample 
+%       6)  Normalization of all EEG features to have 0 mean and 
+%           standard deviation 1
+%
 
-close all
-clear all
+% Intermediate fs (Hz)
+fs = fs_analysis;          
 
-path='C:\Users\marta\Documents\LASEEB\MigN2Treat'; cd(path)
-set(groot, 'defaultFigureUnits','normalized');
-set(groot, 'defaultFigurePosition',[0 0 1 1]);
-set(0,'DefaultFigureVisible','on');
-
-%---------------------------------------------------------------------%
-%------------------------- Input information -------------------------%
-%---------------------------------------------------------------------%
-
-% Define anaysis type 
-cfg.freqdec = 'No';                     % 'Yes', 'No'
-cfg.downsamp = 'No';                    % 'Yes', 'No'
-cfg.computecon = 'Yes';                  % 'Yes', 'No'
-cfg.metric = 'Imcoh';                   % 'Imcoh','Wpli'
-cfg.wnd = 'Yes';                        % 'Yes','No'
-cfg.shift = 'Conv';                     % 'Conv', 'Delay'
-cfg.plot = [3];                          % ids of the plots to be plotted 
-cfg.data = 'eeg_preprocessed';  
-cfg.subject = 'sub-patient006';  
-
-% Define parameters for the
-% frequency decomposition
-n_freq = 100;                          % number of frequencies 
-freq_range = [1 30];                   % frequency range 
-R = 7;                                 % number of cycles      
-
-% Define other parameters
-fs_new = 4;                            % intermediate frequency (Hz)
-delay_range = [10 8 6 5 4 2];          % predictor delasys (sec)
-size_kern = 32;                        % size of hrf kernel (seconds)
-n_delays = length(delay_range);
-
-bands(1).name = 'Delta'; bands(1).range = [1 4];  % delta band range
-bands(2).name = 'Theta'; bands(2).range = [4 8];  % theta band range
-bands(3).name = 'Alpha'; bands(3).range = [8 13]; % alpha band range
-bands(4).name = 'Beta'; bands(4).range = [13 30]; % beta band range
-n_bands = size(bands,2);                                      
-
-% Define plot variables 
-plot_channel = [10 9];
-plotting_delay = 3;             
-
-% Specify directory where images should be saved 
-% Define input and output data and images paths 
-path_data_in=strcat(path,'\DATA\',cfg.subject,'\eeg\');
-path_data_out=strcat(path,'\DERIVATIVES\',cfg.subject,'\eeg\');
-path_img_out=strcat(path,'\RESULTS\',cfg.subject,'\eeg\connectivity');
-
-%---------------------------------------------------------------------%
-%------------------------- Load data (EEGLAB) ------------------------%
-%---------------------------------------------------------------------%
-
-% Load eeg dataset of specified subject 
-load(strcat(path_data_in,cfg.data,'.mat'));
-
-% Extract event information 
-event = struct2cell(EEG.event);
-type = event(1,:,:); type = squeeze(type);
-latency = event(2,:,:); latency=squeeze(latency);
-latency = cell2mat(latency);
-
-% Map simultaneous fmri scan datapoints 
-str=('Scan Start');idxScan = find(ismember(type,str));
-idx_first = idxScan(1); first = round(latency(idx_first)); 
-idx_second = idxScan(2); second = round(latency(idx_second));
-idx_last =idxScan(end); last = round(latency(idx_last));
-
-clear str idx_first idx_second idx_last
-
-% Extract further data from dataset
-data = EEG.data;                     % eeg data matrix 
-n_chans = size(data,1);               % number of channels
-n_pnts = size(data,2);                % number of datapoints
-fs = EEG.srate;                      % sampling frequency (Hz)
-TR = (second-first)/fs;              % bold repetition time (sec)
-time_vector = 0:1/fs:(n_pnts-1)/fs;
-
-%-------------------------------------------------------------------------%
-%------------------- Parameters for frequency analysis -------------------%
-%-------------------------------------------------------------------------%
-
-% Build vector of frequencies
-freq_min = freq_range(1); 
-freq_max = freq_range(2);
-
-alphaspctrm = (freq_max/freq_min)^(1/n_freq) - 1; 
-freq_vector = ((1+alphaspctrm).^(1:n_freq)) * freq_min; % use more frequency
-                                                        % bins for the lower
-                                                        % frequencies
-clear freq_min freq_max alphasctrm
-
-% Assign frequency band indexes
-for i = 1: n_bands
-    bands(i).idx = find(freq_vector>=bands(i).range(1) ...
-        & freq_vector<bands(i).range(2));
-end
-
-
-%-------------------------------------------------------------------------%
-%--------------------- Compute connectivity metric -----------------------%
-%---------------------- and downsample predictors ------------------------%
-
-epoch_size = 2; % seconds
-epoch_samples = epoch_size*fs +1;
-
-time_vector_new = 0 : 1/fs_new : (n_pnts-1)/fs;
-n_pnts_new = length(time_vector_new); 
-
-cxx = zeros(n_chans,n_freq,n_pnts_new);
-cxy = zeros(n_chans,n_chans,n_freq,n_pnts_new);
-im_coh = zeros(n_chans,n_chans,n_freq,n_pnts_new);
-
-offset = (epoch_samples-1)/2;
-n_pnts_final = time_vector_new(end)*fs+1;
-vector = round(1+offset:fs/fs_new:n_pnts_final-offset);
-
-% Compute auto-cross-spectrum for each channel 
-for c = 1 : n_chans
+%------------------------------------------------------------    
+% Go through metrics
+%------------------------------------------------------------
+for m = 1 : length(metrics)
     
-    x = data(c,:);
-    t = 1+(n_pnts_new-length(vector))/2;
-
-    for i = vector
-        
-        epoch = i-(epoch_samples-1)/2:i+(epoch_samples-1)/2;
-        xepoch = x(epoch);
-        cxx(c,:,t) = cpsd(xepoch,xepoch,hamming(250),1,freq_vector,fs);      
-        t = t+1;
-        
-    end
+    % Define current metric
+    metric = metrics(m);
     
-end
-
-cxx(:,:,1:(epoch_samples-1)/2)=1;
-
-% Compute the cross-spectrum
-for c1 = 1 : n_chans
+    % Get parameters of the 
+    % current metric
+    get_metric_pars
     
-    for c2 = 1 : c1
+    %------------------------------------------------------------    
+    % Go through subjects
+    %------------------------------------------------------------
+    for s = 1 : length(subjects)
+
+        % Define current subject 
+        subject = subjects(s);
         
-        if c2 == c1; continue; end
+        disp(strcat('Computing connectivity features for', ... 
+            " ", subject,', metric'," ", metric, ' ...'));
+
+        %---------------------------------------------------------    
+        % Load data 
+        %--------------------------------------------------------- 
+
+        % Load eeg dataset of specified subject 
+        load(fullfile(path_data_in(s),data_in));
         
-        t = 1+(n_pnts_new-length(vector))/2;
+        % Save chanlocs structure if non existent 
+        if ~exist(fullfile('PARS','chanlocs.mat'),'file')
+            save(fullfile('PARS','chanlocs.mat'),'chanlocs');
+        end
 
-        for i = vector
+        first_last = dlmread(fullfile(path_markers_in(s),markers_in));
+        
+        my_file = fullfile(path_markers_in(s), markers_sub_task_in);
+        if exist(my_file,'file')
+            sub_task_design = dlmread(my_file);
+        end
+        
+        % Assign first and last 
+        % EEG samples
+        first_eeg = first_last(1); 
+        last_eeg = first_last(end);
+        
+        % Create output directories if non-existent 
+        if ~exist(path_data_out(s), 'dir'); mkdir(path_data_out(s)); end
+        if ~exist(path_img_out(s), 'dir'); mkdir(path_img_out(s)); end    
 
-            x = data(c1,:);y=data(c2,:);
-            epoch = i-(epoch_samples-1)/2:i+(epoch_samples-1)/2;
-            xepoch = x(epoch);yepoch=y(epoch);
+        % Extract EEG data from dataset
+        data = EEG.data;                 
 
-            cxy(c1,c2,:,t) = cpsd(xepoch,yepoch,hamming(250),1,freq_vector,fs);  
-            im_coh(c1,c2,:,t)=imag(squeeze(cxy(c1,c2,...
-                :,t))'./squeeze(sqrt(cxx(c1,:,t).*cxx(c2,:,t))));
+        % First and last samples in the new fs
+        first = ceil(first_eeg*fs/fs_eeg);
+        last = ceil(last_eeg*fs/fs_eeg); 
+
+        %---------------------------------------------------------    
+        % TF decomposition to extract the cross-spectrum  
+        %---------------------------------------------------------
+        
+        % Compute the cross-spectrum at each pair of signals, 
+        % throughout time 
+        [cross_spectrum, f_vector] = tf_analysis_cross_spectrum...
+            (data, [f_min f_max], n_freq, tf_sliding_window_seconds, ...
+            fs_eeg, fs);
+        
+        % Update number of time-points 
+         n_pnts = size(cross_spectrum,2);
+        
+        %---------------------------------------------------------    
+        % Compute connectivity feature 
+        %---------------------------------------------------------
+        
+        % Estimate number of samples of the TF sliding window 
+         tf_sliding_window_samples = tf_sliding_window_seconds...
+             *fs_eeg + 1;
+                        
+        % Compute connectivity matric 
+        [conspec, pvalues] = compute_connectivity_metric...
+            (cross_spectrum, metric, tf_sliding_window_samples);
+        
+        % Average connectivity for each frequency band 
+        eeg_features = average_frequency(conspec, f_vector, bands);
+        
+        %---------------------------------------------------------    
+        % Remove outliers 
+        %---------------------------------------------------------
+
+        % Remove feature time-points that are 10 times greater
+        % than the features' standard deviation 
+        
+        % Reshape the feature matrix to have 2 dimensions
+        siz = size(eeg_features);
+        eeg_features = reshape(eeg_features,[n_pnts, ...
+            numel(eeg_features(1, :, :, :))]);
+        
+        % Define the outlier threshold for each feature 
+        out_thresh = repmat(10*std(eeg_features),[n_pnts 1]);
+        eeg_features(eeg_features>out_thresh) = ...
+            out_thresh(eeg_features>out_thresh);
+        
+        % Reshape feature matrix into its original dimension 
+        eeg_features = reshape(eeg_features, siz);
+        
+        %---------------------------------------------------------    
+        % Mirror padd features before convolution  
+        %---------------------------------------------------------        
+        
+        % Mirror padd the features at a length equal
+        % to the convolution kernal size + 1 (seconds)
+        eeg_features = eeg_features(first:last, :, :, :);
+
+        % Padd features in the pre-direction 
+        padsize = max(first - 1, hrf_kernel_seconds*fs);
+        eeg_features = padarray(eeg_features, ...
+            padsize, 'symmetric', 'pre');
+
+        % Padd features in the post-direction
+        padsize = max(n_pnts - last, hrf_kernel_seconds*fs);
+        eeg_features = padarray(eeg_features, ...
+            padsize, 'symmetric', 'post');
+        
+        %---------------------------------------------------------    
+        % Convolve/delay features 
+        %--------------------------------------------------------- 
+        
+        switch eeg_shift
             
-            t=t+1;
-
+            case 'conv'
+                
+                % Specify label for plotting 
+                plotting_shift = 'convolved';
+                
+                % Convolve features with the specified family of HRFs 
+                eeg_features_delayed = convolve_features(eeg_features, ...
+                    fs, delays, hrf_kernel_seconds);
+                
+                % Permute resulting matrix to have bands at the end
+                siz = size(eeg_features_delayed);
+                eeg_features_delayed = permute(eeg_features_delayed, ...
+                    [(1:length(siz(1:end-2))) length(siz) ...
+                    length(siz(1 : end-1))]);
+                
+                % Prune the features to match the BOLD acquisition
+                % times
+                eeg_features_delayed = eeg_features_delayed...
+                    (first:last, :, :, :, :);                
+                
+            case 'delay'
+                
+                % Specify label for plotting 
+                plotting_shift = 'delayed';
+                
+                % Shift features by the specified range of delays 
+                eeg_features_delayed = delay_features(eeg_features, ...
+                    fs, delays, [first last]);
+                
+                % Prune the features to match the BOLD acquisition
+                % times
+                eeg_features_delayed = eeg_features_delayed...
+                    (first:last, :, :, :, :);
+             
         end
-    
-    end
-  
-end
-
-
-conspctrm = im_coh+permute(im_coh,[2,1,3,4]);
-
-% Update first and last samples to the new frequency
-first_new = round(first*fs_new/fs);
-last_new = round(last*fs_new/fs); 
-%ceil(first*fs_new/fs);
-%floor(last*fs_new/fs); 
-
-%-------------------------------------------------------------------------%
-%-------------------- Average across frequency bands ---------------------%
-%-------------------------------------------------------------------------%
-
-% Average connectivity spectrum across frequency bands
-conspctrm_avg = zeros(n_chans,n_chans,n_bands,n_pnts_new);
-
-for i = 1 : n_bands
-    conspctrm_avg(:,:,i,:) = mean(conspctrm(:,:,bands(i).idx,:),3); 
-end 
-
-%-------------------------------------------------------------------------%
-%---------------------- Plot connectivity measures  ----------------------%
-%-------------------------------------------------------------------------% 
-
-% Save metric name for plotting
-switch cfg.metric 
-    case 'Imcoh'
-        s = 'Imaginary Part of Coherency';
-        ss = 'ipc';
-    case 'Wpli'
-        s = 'Weighted Phase Lag Index';
-        ss = 'wpli';
-end 
-
-% Save channel label string for plotting 
-chanlocs = struct2cell(EEG.chanlocs);
-labels = string(squeeze(chanlocs(1,:,:)));
-
-if ~isempty(find(cfg.plot==1))
-    
-    % Define baseline interval
-    % baseline is between -baseline(1)
-    % and -baseline(2), in seconds 
-    baseline = [7.5 5]; 
-
-    % Plot connectivity in all frequency bins between channel 
-    % c3 (chan 5) and all other channels, throughout time
-
-    figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-        ' and all other channels (part I), baseline subtracted');
-    figure('Name',figure_name);
-
-    n =1;
-    for chan = 1 :round(n_chans/2)
-
-        % Subtract baseline, consisting of imc time-averaged 
-        % in the interval [-7.5,-5] seconds  
-        idx = first_ne-(baseline(1)*fs_new):first_ne-(baseline(2)*fs_new);
-        subtract = mean(squeeze(conspctrm(plotting_channel(1),chan,:,idx)),2);
-        signal = squeeze(conspctrm(plotting_channel(1),chan,:,first_ne:last_new))-...
-            subtract;
-
-        subplot(4,4,n); imagesc(time_vector_new(first_ne:last_new),...
-            freq_vector,signal); 
-        colorbar;caxis([min(min(signal)) max(max(signal))]); 
-        title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-        xlabel('Time (s)'); ylabel(ss); 
-
-        n = n +1;
-
-    end
-
-    figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-        ' and all other channels (part II), baseline subtracted');
-    figure('Name',figure_name);
-
-    n = 1;
-    for chan = round(n_chans/2)+1 : n_chans
-
-        % Subtract baseline, consisting of imc time-averaged 
-        % in the interval [-7.5,-5] seconds  
-        idx = first_ne-(baseline(1)*fs_new):first_ne-(baseline(2)*fs_new);
-        subtract = mean(squeeze(conspctrm(plotting_channel(1),chan,:,idx)),2);
-        signal = squeeze(conspctrm(plotting_channel(1),chan,:,first_ne:last_new))-...
-            subtract;
-
-        subplot(4,4,n); imagesc(time_vector_new(first_ne:last_new),...
-            freq_vector,signal); 
-        colorbar; caxis([min(min(signal)) max(max(signal))]); 
-        title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-        xlabel('Time (s)'); ylabel(ss); 
-
-        n = n +1;
-
-    end
-    
-    n_pnts_new = length(first_ne:last_new);
-    timeaux = 0:1/fs_new:(n_pnts_new-1)/fs_new;
-    idx = first_ne-(baseline(1)*fs_new):first_ne-(baseline(2)*fs_new);
-    subtract = mean(squeeze(conspctrm(plotting_channel(1),plotting_channel(2),:,idx)),2);
-    signal = squeeze(conspctrm(plotting_channel(1),plotting_channel(2),:,first_ne+150:last_new))-...
-        subtract;
-    figure;imagesc(timeaux(1:end-150),freq_vector(1:end-150),signal); 
-    colorbar; caxis([min(min(signal)) max(max(signal))]); 
-    %title(strcat('Imaginary Part of Coherency between channel', " ",...
-     %   labels(plotting_channel(1))," and channel"," ",labels(plotting_channel(2))),...
-      %  'FontSize',16);
-    xlabel('Time (s)','FontSize',26); ylabel('Frequency (Hz)','FontSize',26); 
+         
+        % Prune the original features to match the BOLD 
+        % acquisition times 
+        eeg_features = eeg_features(first:last, :, :, :, :);
         
-    for chan = 1 : n_chans
-
-        % Plot topography of connectivty in every frequency band,
-        % between all pairs of channels, averaged throughout time 
-        figure_name = strcat(s, ' (time avg) for all pairs of channel',...
-            " ", num2str(chan)); figure('Name',figure_name);
-
-        for i = 1 : n_bands
-
-            subplot(2,ceil(n_bands/2),i); 
-            title(strcat(bands(i).name, ' band')); 
-            topoplot(conspctrm_avg(chan,:,i,first_ne:last_new),EEG.chanlocs,...
-                'electrodes','labels','whitebk','on', 'gridscale',100); 
-            colorbar; caxis([min(min(conspctrm_avg(chan,:,i,first_ne:last_new)))...
-               max(max(conspctrm_avg(chan,:,i,first_ne:last_new)))]);
-
-        end
-
-    end 
-
-
-    % Plot connectivity in all frequency bands between channel 
-    % c3 (chan 5) and all other channels, throughout time
-
-    figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-        ' and all other channels (part I), baseline subtracted');
-    figure('Name',figure_name);
-
-    n =1;
-    for chan = 1 :round(n_chans/2)
-
-        % Subtract baseline, consisting of imc time-averaged 
-        % in the interval [-7.5,-5] seconds  
-        idx = first_ne-(baseline(1)*fs_new):first_ne-(baseline(2)*fs_new);
-        subtract = mean(squeeze(conspctrm_avg(plotting_channel(1),chan,:,idx)),2);
-        signal = squeeze(conspctrm_avg(plotting_channel(1),chan,:,first_ne:last_new))-...
-            subtract;
-
-        subplot(4,4,n); imagesc(time_vector_new(first_ne:last_new),...
-            mean(range,2),signal); 
-        colorbar; caxis([min(min(signal)) max(max(signal))]); 
-        title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-        xlabel('Time (s)'); ylabel(ss); 
-
-        n = n +1;
-
-    end
-
-    figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-        ' and all other channels (part II), baseline subtracted');
-    figure('Name',figure_name);
-
-    n = 1;
-    for chan = round(n_chans/2)+1 : n_chans
-
-        % Subtract baseline, consisting of imc time-averaged 
-        % in the interval [-7.5,-5] seconds  
-        idx = first_ne-(baseline(1)*fs_new):first_ne-(baseline(2)*fs_new);
-        subtract = mean(squeeze(conspctrm_avg(plotting_channel(1),chan,:,idx)),2);
-        signal = squeeze(conspctrm_avg(plotting_channel(1),chan,:,first_ne:last_new))-...
-            subtract;
-
-        subplot(4,4,n); imagesc(time_vector_new(first_ne:last_new),...
-            mean(range,2),signal); 
-        colorbar; caxis([min(min(signal)) max(max(signal))]); 
-        title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-        xlabel('Time (s)'); ylabel(ss); 
-
-        n = n +1;
-
-    end
-    
-end
-    
-%---------------------------------------------------------------------%
-%------------------- Compute Weighted Node Degree --------------------%
-%---------------------------------------------------------------------%
-
-if strcmp(cfg.wnd,'Yes')
-    wnd_pred = squeeze(mean(conspctrm_avg,2));
-    wnd_pred = permute(wnd_pred,[3,1,2]);
-end
-
-%---------------------------------------------------------------------%
-%------------------- Remove redundant values and ---------------------%
-%------------------ linearize connectivity matrix --------------------%
-
-% Convert all 2D matrices (chan x chan) into upper 
-% triangular matrices and save in 1D vectors the 
-% linear indices of matrices' non-zero values 
-aux = reshape(conspctrm_avg.*triu(ones(n_chans),1),...
-    [n_chans*n_chans,n_bands,n_pnts_new]);
-idx = find(aux(:,1,1)); aux = aux(idx,:,:); clear idx;
-aux = permute(aux,[3,1,2]); pred.pred = aux; clear aux;
-
-% Create pred field map, which maps each entry of the 1D
-% vector to the column (pred.map(1)) and row (pred.map(2))
-% indexes of the original (chan x chan) 2D matrix 
-[columns,rows]=meshgrid(1:n_chans,1:n_chans); 
-columns = (reshape(triu(columns,1),[n_chans*n_chans,1]));
-rows = (reshape(triu(rows,1),[n_chans*n_chans,1]));
-[~,~,columns]=find(columns); [~,~,rows]=find(rows);
-pred.map = table(rows,columns); map=pred.map;
-
-save('ConnectivityChansMap.mat','map');
-
-map = table2array(map);
-
-
-%---------------------------------------------------------------------%
-%------------------- Mirror padding the signal -----------------------%
-%----------------------- before convolution --------------------------%
-
-% Mirror padd the signal at a length
-% equal to kernal size + 1 (seconds)
-aux = pred.pred(first_ne:last_new,:,:);
-
-% Pre-direction 
-padsize = max(first_ne-1,size_kern*fs_new);
-aux = padarray(aux,padsize,...
-    'symmetric','pre');
-
-% Post-direction
-padsize = max(n_pnts_new-last_new,size_kern*fs_new);
-pred.pred = padarray(aux,padsize,...
-    'symmetric','post');
-
-%---------------------------------------------------------------------%
-%----------------- Convolution with hrf or delay  --------------------%
-%---------------------------------------------------------------------%
-
-% Allocate predDelay matrix 
-n_preds = size(pred.pred,2);
-pred_delay = zeros(n_pnts_new,...
-    n_preds,n_delays,n_bands);
-
-if strcmp(cfg.wnd,'Yes')
-    wnd_pred_delay = zeros(n_pnts_new,...
-        n_chans,n_delays,n_bands);
-end
-
-switch cfg.shift 
-    
-    case 'Conv'
-        
-        plot_shift = 'Conv';
-
-        pred_delay = ConvolveFeatures(pred.pred,...
-            fs_new,delay_range,size_kern);
-        
-        pred_delay = pred_delay(first_ne:last_new,:,:,:);      
-        
-        % Cut the eeg predictor matrices to   
-        % match the bold acquisition times 
-        pred.pred=pred.pred(first_ne:last_new,:,:);
-        
-        % Weighted node degree
-        if strcmp(cfg.wnd,'Yes')
-            wnd_pred_delay = ConvolveFeatures(wnd_pred,...
-            fs_new,delay_range,size_kern);       
-            wnd_pred_delay = wnd_pred_delay(first_ne:last_new,:,:,:);
-            wnd_pred = wnd_pred(first_ne:last_new,:,:);
-        end
-        
-        % Update other variables 
-        n_pnts_new = length(first_ne:last_new);
-        time_vector_new = 0: 1/fs_new : (n_pnts_new-1)/fs_new;
+        % Update number of time-points 
+        n_pnts = size(eeg_features,1);
+        time = 0 : 1/fs : (n_pnts-1)/fs;
             
-    case 'Delay'
+        %---------------------------------------------------------    
+        % Prune according to the task design (case sub_task)
+        %---------------------------------------------------------
         
-        plot_shift = 'delayed';
-        pred_delay = DelayFeatures...
-            (conspctrm_avg,fs_new,delay_range,[first_ne,last_new]);  
+        if ~isempty(sub_task)
+            
+            % Prune the sub_task_design to match the duration 
+            % of the task 
+            sub_task_design = sub_task_design(first : last);
+            
+            % Prune the original features according 
+            % to the sub-task design 
+            eeg_features = eeg_features(logical...
+                (sub_task_design), :, :, :);
+            
+            if ~isempty(eeg_shift)
+                
+                % Prune the delayed features according to the 
+                % sub-task design 
+                eeg_features_delayed = eeg_features_delayed...
+                    (logical(sub_task_design), :, :, :, :);
+                
+            end
+            
+            % Update number of time-points 
+            n_pnts = size(eeg_features,1);
+            time = 0 : 1/fs : (n_pnts-1)/fs;
+            
+        end
         
-end        
-
-
-%-------------------------------------------------------------------------%
-%---------------- Normalize predictors (0 mean, 1 std) -------------------%
-%-------------------------------------------------------------------------%
-
-% Normalize predictor to zero mean and standard deviation one
-pred_norm = pred.pred - (repmat(mean(pred.pred), n_pnts_new, 1)); 
-pred_norm = pred_norm./(repmat(std(pred_norm), n_pnts_new, 1));
-
-% Normalize delayed pred to 0 mean and standard deviation 1
-pred_delay_norm = reshape(pred_delay, ...
-    [n_pnts_new, n_preds*length(delay_range)*size(pred_delay,4), 1]);
-pred_delay_norm = pred_delay_norm - ...
-    (repmat(mean(pred_delay_norm), n_pnts_new, 1)); %demeaned
-pred_delay_norm = pred_delay_norm./...
-    (repmat(std(pred_delay_norm), n_pnts_new, 1)); %one std
-pred_delay_norm = reshape(pred_delay_norm, ...
-    [n_pnts_new, n_preds, length(delay_range),size(pred_delay,4)]);
-
-if strcmp(cfg.wnd,'Yes')
-    
-    % Normalize predictor to zero mean and standard deviation one
-    wnd_pred_norm = wnd_pred - (repmat(mean(wnd_pred), n_pnts_new, 1)); 
-    wnd_pred_norm = wnd_pred_norm./(repmat(std(wnd_pred_norm), n_pnts_new, 1));
-
-    % Normalize delayed pred to 0 mean and standard deviation 1
-    wnd_pred_delay_norm = reshape(wnd_pred_delay, ...
-        [n_pnts_new, n_chans*length(delay_range)*size(wnd_pred_delay,4), 1]);
-    wnd_pred_delay_norm = wnd_pred_delay_norm - ...
-        (repmat(mean(wnd_pred_delay_norm), n_pnts_new, 1)); %demeaned
-    wnd_pred_delay_norm = wnd_pred_delay_norm./...
-        (repmat(std(wnd_pred_delay_norm), n_pnts_new, 1)); %one std
-    wnd_pred_delay_norm = reshape(wnd_pred_delay_norm, ...
-        [n_pnts_new, n_chans, length(delay_range),size(wnd_pred_delay,4)]);
-    
-end
-
-
-%-------------------------------------------------------------------------%
-%---------------- Plot predictors (after normalization) ------------------%
-%-------------------------------------------------------------------------%
-
-if ~isempty(find(cfg.plot==2))
-    
-    delay = plotting_delay;
-    map = table2array(pred.map);
-
-
-    % Plot connectivity, for each frequency band, between  
-    % channel c3 and all other channels, throughout time
-
-    for i = 1 : n_bands
-
-        figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-            ' and all other channels (part I), after HRF convolution',...
-            ' (delay ',num2str(delay_range(delay)), ' sec) and normalization, (',...
-            bands(i).name, " ", 'band)'); figure('Name',figure_name);
-
-        n =1;
-
-        for chan = 1 : round(n_chans/2)
-
-            if chan == plotting_channel(1)
-                continue
-            end
-
-            % Map plot channel pair from 2D matrix to 1D vector
-            idx2D = sort([chan plotting_channel(1)]);
-            idx1D = intersect(find(map(:,1)==idx2D(1)),...
-                find(map(:,2)==idx2D(2)));
-
-            signal = pred_delay_norm(:,idx1D,delay,i);
-
-            subplot(4,4,n); plot(time_vector_new,signal); 
-            title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-            xlabel('Time (s)'); ylabel('IPC'); 
-
-            n = n + 1;
-
+        %---------------------------------------------------------    
+        % Normalize features (0 mean, 1 std) 
+        %--------------------------------------------------------- 
+        
+        % Normalize (subtract the mean, divide by the std)
+        eeg_features_norm = zscore(eeg_features);
+        
+        if ~isempty(eeg_shift)
+            
+            % Normalize by first reshaping features into a 
+            % 2 dimensional array
+            eeg_features_delayed_norm  = zscore(reshape(...
+                eeg_features_delayed, [n_pnts numel(...
+                eeg_features_delayed(1, :, :, :, :))]));
+            
+            % Reshape features into its original dimensions
+            eeg_features_delayed_norm = reshape(...
+                eeg_features_delayed_norm, size(...
+                eeg_features_delayed));
+            
         end
-
-        figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-            ' and all other channels (part II), after HRF convolution',...
-            ' (delay ',num2str(delay_range(delay)), ' sec) and normalization, (',...
-            bands(i).name, " ", 'band)'); figure('Name',figure_name);
-
-        n =1;
-
-        for chan = round(n_chans/2) + 1 : n_chans
-
-            if chan == plotting_channel(1)
-                continue
-            end
-
-            % Map plot channel pair from 2D matrix to 1D vector
-            idx2D = sort([chan plotting_channel(1)]);
-            idx1D = intersect(find(map(:,1)==idx2D(1)),...
-                find(map(:,2)==idx2D(2)));
-
-            signal = pred_delay_norm(:,idx1D,delay,i);
-
-            subplot(4,4,n); plot(time_vector_new,signal); 
-            title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-            xlabel('Time (s)'); ylabel(ss); 
-
-            n = n + 1;
-
+        
+        %---------------------------------------------------------    
+        % Plots and report (before/after convolution)
+        %--------------------------------------------------------- 
+        
+        if flag.report ~= 0
+            report_connectivity_features;
         end
+        
+        %---------------------------------------------------------    
+        % Write feature files 
+        %--------------------------------------------------------- 
+        
+        % Build final feature matrices to be written in file        
+        eeg_features_norm = reshape(eeg_features_norm, ...
+            [n_pnts, numel(eeg_features_norm(1, :, :, :))]);
+        
+        % Delete the channel pairs that correspond to redundant 
+        % channel pairs 
+        if size(squeeze(dim)) == 4
+            eeg_features_norm = eeg_features_norm(:, find(repmat...
+                (tril(ones(n_chans), -1), [1 1 n_bands])));
+        end
+        
+        if ~isempty(eeg_shift)
+            
+            eeg_features_delayed_norm = reshape(...
+                eeg_features_delayed_norm, [n_pnts, ...
+                numel(eeg_features_delayed_norm(1, :, :, :, :))]);
+            
+        end
+        
+        % Specify file names      
+        feature_out = strcat(eeg_metric, '_', data_out);
 
-    end
+        switch eeg_shift
 
-    % Plot connectivity, for all frequency bands and all 
-    % delays, between channel c3 and fc1, throughout time
+            case 'conv'
 
-    % Map plot channel pair from 2D matrix to 1D vector
-    idx2D = sort(plotting_channel);
-    idx1D = intersect(find(map(:,1)==idx2D(1)),...
-        find(map(:,2)==idx2D(2)));
+                feature_out_delayed = strcat(eeg_metric,'_', ...
+                    data_out_conv);
 
-    for i = 1 : n_bands 
+            case 'delay'
 
-    figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-        ' and channel', " ", labels(plotting_channel(2)),' after HRF convolution',...
-        'and normalization, (', bands(i).name, " ", 'band)');
-    figure('Name',figure_name);
-
-        for d = 1:n_delays
-            plot(time_vector_new,pred_delay_norm(:,idx1D,d,i)); hold on;
+                feature_out_delayed = strcat(eeg_metric,'_', ...
+                    data_out_delay);
+                
         end 
 
-    title(figure_name); xlabel('Time (sec)'); ylabel(ss);
-    legend(string(delay_range));
-
-
-    end
-
-end       
-
-%-------------------------------------------------------------------------%
-%---------------------------- Remove outliers ----------------------------%
-%-------------------------------------------------------------------------%
-
-% Threshold datapoints with value greater than mean+-3std
-o = 3;
-
-pred_norm(pred_norm>o)=o; pred_norm(pred_norm<-o)=-o;
-pred_delay_norm(pred_delay_norm>o)=o; 
-pred_delay_norm(pred_delay_norm<-o)=-o;
-
-if strcmp(cfg.wnd,'Yes')
-    wnd_pred_norm(wnd_pred_norm>o)=o; 
-    wnd_pred_norm(wnd_pred_norm<-o)=-o;
-    wnd_pred_delay_norm(wnd_pred_delay_norm>o)=o; 
-    wnd_pred_delay_norm(wnd_pred_delay_norm<-o)=-o;
-end 
-
-%-------------------------------------------------------------------------%
-%---------------- Plot predictors (after normalization -------------------%
-%----------------------- and outlier removal) ----------------------------%
-
-if ~isempty(find(cfg.plot==3))
-    
-    delay = plotting_delay;
+        % Write EEG feature files
+        dlmwrite(fullfile(path_data_out(s), feature_out), ...
+            eeg_features_norm);
         
-    % Plot connectivity, for each frequency band, between  
-    % channel c3 and all other channels, throughout time
-
-        for i = 1 : n_bands
-
-            figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-                ' and all other channels (part I), after HRF convolution',...
-                ' (delay ',num2str(delay_range(delay)), ' sec) and normalization, (',...
-                bands(i).name, " ", 'band)'); figure('Name',figure_name);
-
-            n =1;
-
-            for chan = 1 : round(n_chans/2)
-
-                if chan == plotting_channel(1)
-                    continue
-                end
-
-                % Map plot channel pair from 2D matrix to 1D vector
-                idx2D = sort([chan plotting_channel(1)]);
-                idx1D = intersect(find(map(:,1)==idx2D(1)),...
-                    find(map(:,2)==idx2D(2)));
-
-                signal = pred_delay_norm(:,idx1D,delay,i);
-
-                subplot(4,4,n); plot(time_vector_new,signal); 
-                title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-                xlabel('Time (s)'); ylabel('IPC'); 
-
-                n = n + 1;
-
-            end
-
-            savename = strcat('IPC_',bands(i).name,num2str...
-                (delay_range(plotting_delay)),...
-                'sec',num2str(plotting_channel(1)),'chan_I.png');
-            saveas(gcf,fullfile(path_img_out,savename));
-
-            figure_name = strcat(s, ' between channel'," ",labels(plotting_channel(1)),...
-                ' and all other channels (part II), after HRF convolution',...
-                ' (delay ',num2str(delay_range(delay)), ' sec) and normalization, (',...
-                bands(i).name, " ", 'band)'); figure('Name',figure_name);
-
-            n =1;
-
-            for chan = round(n_chans/2) + 1 : n_chans
-
-                if chan == plotting_channel(1)
-                    continue
-                end
-
-                % Map plot channel pair from 2D matrix to 1D vector
-                idx2D = sort([chan plotting_channel(1)]);
-                idx1D = intersect(find(map(:,1)==idx2D(1)),...
-                    find(map(:,2)==idx2D(2)));
-
-                signal = pred_delay_norm(:,idx1D,delay,i);
-
-                subplot(4,4,n); plot(time_vector_new,signal); 
-                title(strcat(labels(plotting_channel(1)),",",labels(chan)));
-                xlabel('Time (s)'); ylabel(ss); 
-
-                n = n + 1;
-
-            end
-
-            savename = strcat('IPC_',bands(i).name,num2str...
-                (delay_range(plotting_delay)),...
-                'sec',num2str(plotting_channel(1)),'chan_I.png');
-            saveas(gcf,fullfile(path_img_out,savename));
-
+        if ~isempty(eeg_shift)
+            
+            dlmwrite(fullfile(path_data_out(s),feature_out_delayed), ...
+                eeg_features_delayed_norm);
+            
         end
-    
-    % Plot weighted node degree for each channel and band 
-    if strcmp(cfg.samples,'Entire')&& strcmp(cfg.wnd,'Yes')
-            
-         for i = 1 : n_bands 
         
-             n = 1;
-            
-             for chan = 1 : n_chans
-                 
-             figure_name = strcat('Weighted node degree of channel'," ",...
-                 labels(chan),' after HRF convolution (delay ',...
-                 num2str(delay_range(delay)), ' sec) and normalization, (',...
-                    bands(i).name, " ", 'band)'); figure('Name',figure_name);
-
-                plot(time_vector_new, wnd_pred_delay_norm(:,chan,plotting_delay,i));
-                title(figure_name); 
-                xlabel('Time(s)'); ylabel('Amplitude');
-                
-                savename = strcat('WND_',bands(i).name,num2str...
-                    (delay_range(plotting_delay)),...
-                    'sec',num2str(chan),'chan.png');
-                saveas(gcf,fullfile(path_img_out,savename));
-
-            end   
-            
-         end 
-    end 
+    end % finish looping through subjects 
     
-end
-
-
-%-------------------------------------------------------------------------%
-%---------------------- Write eeg predictor files ------------------------%
-%-------------------------------------------------------------------------%
-
-
-% Build final connectivity predictors matrix
-pred_norm = reshape(pred_norm, [n_pnts_new,...
-    n_preds*size(pred_norm,3), 1]);
-pred_delay_norm = reshape(pred_delay_norm, [n_pnts_new,...
-    n_preds*n_delays*size(pred_delay_norm,4), 1]);
-
-if strcmp(cfg.wnd,'Yes')
-    wnd_pred_norm = reshape(wnd_pred_norm, [n_pnts_new,...
-        n_chans*size(wnd_pred_norm,3), 1]);
-    wnd_pred_delay_norm = reshape(wnd_pred_delay_norm, [n_pnts_new,...
-        n_chans*n_delays*size(wnd_pred_delay_norm,4), 1]);
-end
-
-% Write txt file with 
-% final predictors matrix      
-
-dlmwrite(strcat('eeg_',ss,'_feature.txt'),...
-    pred_norm);
-
-dlmwrite(strcat('eeg_',ss,'_feature_',...
-     cfg.shift,'.txt'),pred_delay_norm);
-
-if strcmp(cfg.wnd,'Yes')
-    dlmwrite(strcat('eeg_',ss,'_feature_wnd.txt'),...
-        wnd_pred_norm);
-    dlmwrite(strcat('eeg_',ss,'_feature',...
-         '_wnd_',cfg.shift,'.txt'),wnd_pred_delay_norm);
-end
-
-
+end % finish looping through metrics 

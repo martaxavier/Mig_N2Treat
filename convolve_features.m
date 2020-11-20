@@ -1,17 +1,17 @@
-function [feature_delay] = convolve_features(feature,fs,delay_range,size_kern)
+function [features_delayed] = convolve_features(features,fs,delay_range, ...
+    kern_seconds)
 % 
 %   function [feature_delay] = convolve_features(feature,fs,delay_range,
-%   size_kern) convolves each feature in variable 'feature' with a set  
+%   kern_seconds) convolves each feature in variable 'feature' with a set  
 %   of HRF functions, characterized by a set of overshoot delays specified
 %   in 'delay_range'
 %
 %   INPUTS:
 %
 %   feature         the features to be convolved  
-%                   (time x chans x freq bands) 
 %   fs              the sampling frequency of the features
 %   delay_range     the vector specifying the delays (sec)
-%   size_kern       the size of the hrf kernel to be used for 
+%   kern_seconds    the size of the hrf kernel to be used for 
 %                    convolution (sec)
 %
 %   OUTPUTS:
@@ -24,34 +24,36 @@ function [feature_delay] = convolve_features(feature,fs,delay_range,size_kern)
 % Read input information
 % ------------------------------------------------------------     
 
-% Extract data from pred
-n_chans = size(feature,2);               % number of channels
-n_pnts = size(feature,1);                % number of data points
+% Read size of input data
+siz = size(features);
+n_pnts = siz(1);
+n_features = prod(siz(2:end));
+n_delays = length(delay_range);
 
 % ------------------------------------------------------------
 % Preallocate matrices 
 % ------------------------------------------------------------     
 
-% Allocate feature_delay matrix for all frequency bands
-% time goes through rows, channels go through cols, 
-% delays go through depth, predictor go through 4D
-feature_delay = zeros(n_pnts, n_chans, ...
-    length(delay_range),size(feature,3)); 
+% Allocate new features matrix, by adding the delays dimension 
+features_delayed = zeros(n_pnts, n_features, n_delays);
+
+% Reshape the features matrix to have only 2 dimensions 
+features = reshape(features, [n_pnts n_features]);
 
 % Allocate matrix of hrfs 
-n_kern = size_kern*fs + 1;
-hrf = zeros(n_kern,length(delay_range));
+kern_samples = kern_seconds*fs + 1;
+hrf = zeros(kern_samples, length(delay_range));
 
 % Assign hrf basis function struct, in 
 % the format required by spm_Volterra 
 xBF.dt = 1/fs;
 xBF.name = 'hrf';
-xBF.length = size_kern;
+xBF.length = kern_seconds;
 xBF.order = 1;
 
 % Create eeg predictor struct, in 
 % the format required by spm_Volterra
-P.name = {'predictor'};
+P.name = {'feature'};
 
 % ------------------------------------------------------------
 % Convolve matrices with hrf kernel
@@ -70,7 +72,7 @@ for overshoot_delay = delay_range
     % maintain a linear relation between the parameters’ values
     % of the five variants HRFs and the canonical HR
     s = overshoot_delay/6; % scale factor 
-    p = [overshoot_delay 16*s 1*s 1*s 6 0 size_kern];
+    p = [overshoot_delay 16*s 1*s 1*s 6 0 kern_seconds];
     
     % Assign scan repetition time
     % this should result in a function 
@@ -86,21 +88,18 @@ for overshoot_delay = delay_range
     hrf(:,n) = hrf(:,n)./max(hrf(:,n));
     
     xBF.bf = hrf(:,n);
+    
+    % Perform convolution between each 
+    % feature and each HRF delay 
+    for f = 1 : n_features 
 
-    % Perform convolution between predictor 
-    % (for each channel) and hrf (for each delay)
-    for channel = 1 : n_chans
-        
-        for i = 1 : size(feature,3)
             
              % Convolution in the time-domain, with the same size as
              % the original signal (first and last samples of
              % convolution are cut out to match the intended size)
-             P.u = feature(:,channel,i); 
-             feature_delay(:,channel,n,i)= spm_Volterra(P, xBF.bf);
-             clear P.u;
-            
-        end       
+             P.u = features(:, f); 
+             features_delayed(:, f, n)= spm_Volterra(P, xBF.bf);
+             clear P.u;      
         
     end
     
@@ -109,12 +108,15 @@ for overshoot_delay = delay_range
     
 end
 
+features_delayed = reshape(features_delayed, ...
+    [n_pnts siz(2:end) n_delays]);
+
 % ------------------------------------------------------------
-% Plot the hrfs  
+% Plot the HRFs   
 % ------------------------------------------------------------     
 
 % Assign time vector with fs 250 Hz 
-time_hrf = 0 : 1/fs : size_kern;
+time_hrf = 0 : 1/fs : kern_seconds;
 
 % Plot hrfs 
 figure('Name','Hemodynamic Response Functions (HRFs)')
