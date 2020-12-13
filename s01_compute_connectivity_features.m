@@ -28,14 +28,15 @@ fs = fs_analysis;
 %------------------------------------------------------------    
 % Go through metrics
 %------------------------------------------------------------
-for m = 1 : length(metrics)
+
+[con_metrics, net_metrics] = get_con_net_metrics(metrics);
+
+for m = 1 : length(con_metrics)
     
     % Define current metric
-    metric = metrics(m);
-    
-    % Get parameters of the 
-    % current metric
-    get_metric_pars
+    con_metric = con_metrics{m};
+    metric = con_metric;
+    get_metric_pars;
     
     %------------------------------------------------------------    
     % Go through subjects
@@ -90,8 +91,8 @@ for m = 1 : length(metrics)
         % Compute the cross-spectrum at each pair of signals, 
         % throughout time 
         [cross_spectrum, f_vector] = tf_analysis_cross_spectrum...
-            (data, [f_min f_max], n_freq, tf_sliding_window_seconds, ...
-            fs_eeg, fs);
+            (data, [f_min f_max], n_freq, n_wins_welch, ...
+            tf_sliding_window_seconds, fs_eeg, fs);
         
         % Update number of time-points 
          n_pnts = size(cross_spectrum,2);
@@ -100,216 +101,283 @@ for m = 1 : length(metrics)
         % Compute connectivity feature 
         %---------------------------------------------------------
         
-        % Estimate number of samples of the TF sliding window 
-         tf_sliding_window_samples = tf_sliding_window_seconds...
-             *fs_eeg + 1;
-                        
-        % Compute connectivity matric 
-        [conspec, pvalues] = compute_connectivity_metric...
-            (cross_spectrum, metric, tf_sliding_window_samples);
+        % Compute connectivity metric 
+        conspec = compute_connectivity_metric(cross_spectrum, con_metric);
         
         % Average connectivity for each frequency band 
-        eeg_features = average_frequency(conspec, f_vector, bands);
+        conspec_avg = average_frequency(conspec, f_vector, bands);
         
+         %---------------------------------------------------------    
+         % Plots and report of connectivity spectrum 
+         %--------------------------------------------------------- 
+
+%         if flag.report ~= 0
+%             report_connectivity_spectrum;
+%         end
+    
         %---------------------------------------------------------    
-        % Remove outliers 
+        % Statistical filtering  
         %---------------------------------------------------------
 
-        % Remove feature time-points that are 10 times greater
-        % than the features' standard deviation 
-        
-        % Reshape the feature matrix to have 2 dimensions
-        siz = size(eeg_features);
-        eeg_features = reshape(eeg_features,[n_pnts, ...
-            numel(eeg_features(1, :, :, :))]);
-        
-        % Define the outlier threshold for each feature 
-        out_thresh = repmat(10*std(eeg_features),[n_pnts 1]);
-        eeg_features(eeg_features>out_thresh) = ...
-            out_thresh(eeg_features>out_thresh);
-        
-        % Reshape feature matrix into its original dimension 
-        eeg_features = reshape(eeg_features, siz);
+        % Compute surrogates of the connectivity matrix to perform 
+        % statistical filtering and remove non-significant connections 
+        [conspec_sig, decision_sig, p_thresh_corrected] = ...
+            statistical_filtering(data, [f_min f_max], n_freq, ...
+            n_wins_welch, tf_sliding_window_seconds, fs_eeg, fs, ...
+            con_metric, conspec_avg, surrogate_method, n_surrogates); 
         
         %---------------------------------------------------------    
-        % Mirror padd features before convolution  
-        %---------------------------------------------------------        
-        
-        % Mirror padd the features at a length equal
-        % to the convolution kernal size + 1 (seconds)
-        eeg_features = eeg_features(first:last, :, :, :);
+        % Topological filtering  
+        %---------------------------------------------------------
 
-        % Padd features in the pre-direction 
-        padsize = max(first - 1, hrf_kernel_seconds*fs);
-        eeg_features = padarray(eeg_features, ...
-            padsize, 'symmetric', 'pre');
+        % Perform topological filtering of the connectivity matrix
+        % using Orthogonalized Minimal Spanning Trees 
+        [conspec_topo, decision_topo] = topological_filtering(conspec_sig, ...
+            decision); 
 
-        % Padd features in the post-direction
-        padsize = max(n_pnts - last, hrf_kernel_seconds*fs);
-        eeg_features = padarray(eeg_features, ...
-            padsize, 'symmetric', 'post');
-        
+        % Save decision matrices and filtered connectivity matrix
+        % in the output directory
+        decision_sig_out = strcat('decision_sig_',con_metric,'.mat');
+        decision_topo_out = strcat('decision_topo_',con_metric,'.mat');
+        conspec_out = strcat('conspec_filtered_',con_metric,'.mat');
+        save(fullfile(path_data_out(s), decision_sig_out), 'decision_sig');
+        save(fullfile(path_data_out(s), decision_topo_out), 'decision_topo');
+        save(fullfile(path_data_out(s), conspec_out), 'conspec_topo');
+                    
+        % Save p-value of connectivity significance, corrected by FDR
+        p_out = strcat('p_thresh_corrected_', con_metric, '.mat');
+            save(fullfile(path_data_out(s), p_out), 'p_thresh_corrected');
+
         %---------------------------------------------------------    
-        % Convolve/delay features 
-        %--------------------------------------------------------- 
-        
-        switch eeg_shift
-            
-            case 'conv'
-                
-                % Specify label for plotting 
-                plotting_shift = 'convolved';
-                
-                % Convolve features with the specified family of HRFs 
-                eeg_features_delayed = convolve_features(eeg_features, ...
-                    fs, delays, hrf_kernel_seconds);
-                
-                % Permute resulting matrix to have bands at the end
-                siz = size(eeg_features_delayed);
-                eeg_features_delayed = permute(eeg_features_delayed, ...
-                    [(1:length(siz(1:end-2))) length(siz) ...
-                    length(siz(1 : end-1))]);
-                
-                % Prune the features to match the BOLD acquisition
-                % times
-                eeg_features_delayed = eeg_features_delayed...
-                    (first:last, :, :, :, :);                
-                
-            case 'delay'
-                
-                % Specify label for plotting 
-                plotting_shift = 'delayed';
-                
-                % Shift features by the specified range of delays 
-                eeg_features_delayed = delay_features(eeg_features, ...
-                    fs, delays, [first last]);
-                
-                % Prune the features to match the BOLD acquisition
-                % times
-                eeg_features_delayed = eeg_features_delayed...
-                    (first:last, :, :, :, :);
-             
-        end
-         
-        % Prune the original features to match the BOLD 
-        % acquisition times 
-        eeg_features = eeg_features(first:last, :, :, :, :);
-        
-        % Update number of time-points 
-        n_pnts = size(eeg_features,1);
-        time = 0 : 1/fs : (n_pnts-1)/fs;
-            
-        %---------------------------------------------------------    
-        % Prune according to the task design (case sub_task)
+        % Compute network measure 
         %---------------------------------------------------------
         
-        if ~isempty(sub_task)
+        for n = 1 : length(net_metrics{:,m})
             
-            % Prune the sub_task_design to match the duration 
-            % of the task 
-            sub_task_design = sub_task_design(first : last);
+            net_metric = net_metrics{m};
+            net_metric = net_metric(n);
+            full_metric = strcat(con_metric,'_',net_metric);
+            metric = full_metric;
+            get_metric_pars;
             
-            % Prune the original features according 
-            % to the sub-task design 
-            eeg_features = eeg_features(logical...
-                (sub_task_design), :, :, :);
-            
-            if ~isempty(eeg_shift)
-                
-                % Prune the delayed features according to the 
-                % sub-task design 
-                eeg_features_delayed = eeg_features_delayed...
-                    (logical(sub_task_design), :, :, :, :);
-                
+            eeg_features = compute_network_metric(conspec_topo, ...
+                net_metric); 
+        
+            %---------------------------------------------------------    
+            % Mirror padd features before convolution  
+            %---------------------------------------------------------        
+
+            % Mirror padd the features at a length equal
+            % to the convolution kernal size + 1 (seconds)
+            eeg_features = eeg_features(first:last, :, :, :);
+
+            % Padd features in the pre-direction 
+            padsize = max(first - 1, hrf_kernel_seconds*fs);
+            eeg_features = padarray(eeg_features, ...
+                padsize, 'symmetric', 'pre');
+
+            % Padd features in the post-direction
+            padsize = max(n_pnts - last, hrf_kernel_seconds*fs);
+            eeg_features = padarray(eeg_features, ...
+                padsize, 'symmetric', 'post');
+
+            %---------------------------------------------------------    
+            % Convolve/delay features 
+            %--------------------------------------------------------- 
+
+            switch eeg_shift
+
+                case 'conv'
+
+                    % Specify label for plotting 
+                    plotting_shift = 'convolved';
+
+                    % Convolve features with the specified family of HRFs 
+                    eeg_features_delayed = convolve_features(eeg_features, ...
+                        fs, delays, hrf_kernel_seconds);
+
+                    % Permute resulting matrix to have bands at the end
+                    siz = size(eeg_features_delayed);
+                    eeg_features_delayed = permute(eeg_features_delayed, ...
+                        [(1:length(siz(1:end-2))) length(siz) ...
+                        length(siz(1 : end-1))]);
+
+                    % Prune the features to match the BOLD acquisition
+                    % times
+                    eeg_features_delayed = eeg_features_delayed...
+                        (first:last, :, :, :, :);                
+
+                case 'delay'
+
+                    % Specify label for plotting 
+                    plotting_shift = 'delayed';
+
+                    % Shift features by the specified range of delays 
+                    eeg_features_delayed = delay_features(eeg_features, ...
+                        fs, delays, [first last]);
+
+                    % Prune the features to match the BOLD acquisition
+                    % times
+                    eeg_features_delayed = eeg_features_delayed...
+                        (first:last, :, :, :, :);
+
             end
-            
+
+            % Prune the original features to match the BOLD 
+            % acquisition times 
+            eeg_features = eeg_features(first:last, :, :, :, :);
+
             % Update number of time-points 
             n_pnts = size(eeg_features,1);
             time = 0 : 1/fs : (n_pnts-1)/fs;
-            
-        end
-        
-        %---------------------------------------------------------    
-        % Normalize features (0 mean, 1 std) 
-        %--------------------------------------------------------- 
-        
-        % Normalize (subtract the mean, divide by the std)
-        eeg_features_norm = zscore(eeg_features);
-        
-        if ~isempty(eeg_shift)
-            
-            % Normalize by first reshaping features into a 
-            % 2 dimensional array
-            eeg_features_delayed_norm  = zscore(reshape(...
-                eeg_features_delayed, [n_pnts numel(...
-                eeg_features_delayed(1, :, :, :, :))]));
-            
-            % Reshape features into its original dimensions
-            eeg_features_delayed_norm = reshape(...
-                eeg_features_delayed_norm, size(...
-                eeg_features_delayed));
-            
-        end
-        
-        %---------------------------------------------------------    
-        % Plots and report (before/after convolution)
-        %--------------------------------------------------------- 
-        
-        if flag.report ~= 0
-            report_connectivity_features;
-        end
-        
-        %---------------------------------------------------------    
-        % Write feature files 
-        %--------------------------------------------------------- 
-        
-        % Build final feature matrices to be written in file        
-        eeg_features_norm = reshape(eeg_features_norm, ...
-            [n_pnts, numel(eeg_features_norm(1, :, :, :))]);
-        
-        % Delete the channel pairs that correspond to redundant 
-        % channel pairs 
-        if size(squeeze(dim)) == 4
-            eeg_features_norm = eeg_features_norm(:, find(repmat...
-                (tril(ones(n_chans), -1), [1 1 n_bands])));
-        end
-        
-        if ~isempty(eeg_shift)
-            
-            eeg_features_delayed_norm = reshape(...
-                eeg_features_delayed_norm, [n_pnts, ...
-                numel(eeg_features_delayed_norm(1, :, :, :, :))]);
-            
-        end
-        
-        % Specify file names      
-        feature_out = strcat(eeg_metric, '_', data_out);
 
-        switch eeg_shift
+            %---------------------------------------------------------    
+            % Prune according to the task design (case sub_task)
+            %---------------------------------------------------------
 
-            case 'conv'
+            if ~isempty(sub_task)
 
-                feature_out_delayed = strcat(eeg_metric,'_', ...
-                    data_out_conv);
+                % Prune the sub_task_design to match the duration 
+                % of the task 
+                sub_task_design = sub_task_design(first : last);
 
-            case 'delay'
+                % Prune the original features according 
+                % to the sub-task design 
+                eeg_features = eeg_features(logical...
+                    (sub_task_design), :, :, :);
 
-                feature_out_delayed = strcat(eeg_metric,'_', ...
-                    data_out_delay);
-                
-        end 
+                if ~isempty(eeg_shift)
 
-        % Write EEG feature files
-        dlmwrite(fullfile(path_data_out(s), feature_out), ...
-            eeg_features_norm);
-        
-        if ~isempty(eeg_shift)
+                    % Prune the delayed features according to the 
+                    % sub-task design 
+                    eeg_features_delayed = eeg_features_delayed...
+                        (logical(sub_task_design), :, :, :, :);
+
+                end
+
+                % Update number of time-points 
+                n_pnts = size(eeg_features,1);
+                time = 0 : 1/fs : (n_pnts-1)/fs;
+
+            end
+
+            %---------------------------------------------------------    
+            % Normalize features (0 mean, 1 std) 
+            %--------------------------------------------------------- 
+
+            % Normalize (subtract the mean, divide by the std)
+            eeg_features_norm = zscore(eeg_features);
+
+            if ~isempty(eeg_shift)
+
+                % Normalize by first reshaping features into a 
+                % 2 dimensional array
+                eeg_features_delayed_norm  = zscore(reshape(...
+                    eeg_features_delayed, [n_pnts numel(...
+                    eeg_features_delayed(1, :, :, :, :))]));
+
+                % Reshape features into its original dimensions
+                eeg_features_delayed_norm = reshape(...
+                    eeg_features_delayed_norm, size(...
+                    eeg_features_delayed));
+
+            end
             
-            dlmwrite(fullfile(path_data_out(s),feature_out_delayed), ...
-                eeg_features_delayed_norm);
+            %---------------------------------------------------------    
+            % Plot network features 
+            %--------------------------------------------------------- 
             
-        end
+            if flag.report ~= 0     
+                report_network_features;
+            end
+            
+            %---------------------------------------------------------    
+            % Write feature files 
+            %--------------------------------------------------------- 
+
+            % Build final feature matrices to be written in file        
+            eeg_features_norm = reshape(eeg_features_norm, ...
+                [n_pnts, numel(eeg_features_norm(1, :, :, :))]);
+
+            % Delete the channel pairs that correspond to redundant 
+            % channel pairs 
+            if size(squeeze(dim)) == 4
+                eeg_features_norm = eeg_features_norm(:, find(repmat...
+                    (tril(ones(n_chans), -1), [1 1 n_bands])));
+            end
+
+            if ~isempty(eeg_shift)
+
+                eeg_features_delayed_norm = reshape(...
+                    eeg_features_delayed_norm, [n_pnts, ...
+                    numel(eeg_features_delayed_norm(1, :, :, :, :))]);
+
+            end
+
+            % Specify file names      
+            feature_out = strcat(eeg_metric, '_', data_out);
+
+            switch eeg_shift
+
+                case 'conv'
+
+                    feature_out_delayed = strcat(eeg_metric,'_', ...
+                        data_out_conv);
+
+                case 'delay'
+
+                    feature_out_delayed = strcat(eeg_metric,'_', ...
+                        data_out_delay);
+
+            end 
+            
+            % Write EEG feature files
+            dlmwrite(fullfile(path_data_out(s), feature_out), ...
+                eeg_features_norm);
+
+            if ~isempty(eeg_shift)
+
+                dlmwrite(fullfile(path_data_out(s),feature_out_delayed), ...
+                    eeg_features_delayed_norm);
+
+            end
+
+        end % finish looping through network metrics 
         
     end % finish looping through subjects 
-    
-end % finish looping through metrics 
+
+end % finish looping through connectivity metrics 
+
+%/////////////////////////////////////////////////////////////
+% SUBFUNCTIONS 
+%/////////////////////////////////////////////////////////////
+
+% ============================================================
+% function get_con_net_metrics(metrics)          
+% ============================================================
+
+function [all_con_metrics, all_net_metrics] = ...
+    get_con_net_metrics(metrics)
+
+% Pre-allocate strings of that list the 
+% connectivity and network metrics 
+con_metrics = strings(length(metrics), 1);
+net_metrics = strings(length(metrics), 1);
+
+for m = 1 : length(metrics)
+    con_metrics(m) = extractBefore(metrics(m), '_');
+    net_metrics(m) = extractAfter(metrics(m), '_');
+end
+
+[con_metrics, ~, c] = unique(con_metrics);
+
+% Pre-allocate 
+all_con_metrics = cell(length(unique(c)), 1);
+all_net_metrics = cell(1, length(unique(c)));
+
+for m = 1 : length(unique(c))
+    all_con_metrics{m} = con_metrics(m);
+    all_net_metrics{:,m} = net_metrics(c == m);
+end
+
+end

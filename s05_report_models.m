@@ -1,5 +1,5 @@
 % Create the report heading 
-my_title = strcat(reg_model,' MODELS');
+my_title = strcat(upper(reg_model),' MODELS');
 H1 = get_report_heading(1,my_title);
 add(R,H1) 
 
@@ -19,12 +19,8 @@ for m = 1 : n_metrics
     % for current metric
     get_metric_pars
     
-    % Specify directory where images are to be saved 
-    path_img_metric_out = strcat(path_img_out,'\',metric);
-
-    % Create directory where results are to be saved 
-    if ~exist(path_img_metric_out, 'dir')
-        mkdir(path_img_metric_out); 
+    if strcmp(reg_model,'l21_1') && n_bands == 1
+        continue
     end
     
     % Load matrix containing the optimal 
@@ -47,11 +43,19 @@ for m = 1 : n_metrics
     for s = 1 : n_subjects
         
         subject = subjects(s);
-        
+
+        % Specify directory where images are to be saved 
+        path_img_metric_out = strcat(path_img_out(s,r),'\',metric);
+
+        % Create directory where results are to be saved 
+        if ~exist(path_img_metric_out, 'dir')
+            mkdir(path_img_metric_out); 
+        end
+    
         % Broadcast the current pipeline stage 
         disp(strcat('Creating report of model ', ...
-    ' results for subject'," ",subject,', metric', ...
-    " ",metric, ' ...'));
+            ' results for subject'," ",subject,', metric', ...
+            " ",metric, ' ...'));
         
         % Define input EEG and BOLD data, according
         % to current metric
@@ -72,7 +76,7 @@ for m = 1 : n_metrics
         % model pair 
         model_in = strcat(metric,'_','model', ...
             '_',cv_method,'.mat');
-        load(fullfile(path_model_in(s,r),model_in));
+        load(fullfile(path_data_in(s,r),model_in));
         
         % Save estimated deconvolution 
         % delay for current subject 
@@ -89,8 +93,8 @@ for m = 1 : n_metrics
         add(R,H3);
 
         % Plot and/or report model results (EFP)
-        plot_efp(bold,model,metric, ...
-            deconv_delay,fs,R,flag.report, ...
+        plot_efp(bold, model, reg_model, metric, ...
+            deconv_delay, fs, R, flag.report, ...
             path_img_metric_out);
 
     end % finish looping through metrics 
@@ -102,8 +106,8 @@ end % finish looping through subjects
 % SUBFUNCTIONS 
 %/////////////////////////////////////////////////////////////
 
-function [] = plot_efp(bold,model,reg_model,metric, ...
-    deconv_delay,fs,R,report,path_img_out)
+function [] = plot_efp(bold, model, reg_model, metric, ...
+    deconv_delay, fs, R, report, path_img_out)
 
 % ------------------------------------------------------------
 % Read inputs 
@@ -136,14 +140,14 @@ topo_settings = {'electrodes','labels', ...
 
 % Assign model variables 
 % that are averaged through folds 
-bic_model = model.bic;
-nmse_model = model.nmse;
-corr_model = model.corr;
-lambda_model = model.lambda;
-rho_model = model.rho; 
-df_model = model.df;
-efp_model = model.efp;
-yhat_model = model.yhat;
+efp_model =     model.efp;
+lambda_model =  model.lambda;
+rho_model =     model.rho; 
+df_model =      model.df;
+yhat_model =    model.yhat;
+bic_model =     model.bic;
+nmse_model =    model.nmse;
+corr_model =    model.corr;
 
 % ------------------------------------------------------------
 % Plot model variables - performance and final model
@@ -181,20 +185,6 @@ append(P, Text(sprintf(' ')));
 P.WhiteSpace = 'preserve';
 add(R,P);
 
-% T = Text(strcat('Model performance was', ...
-%     ' assessed by a 15-fold nondependent', ...
-%     ' cross-validation procedure. The model', ...
-%     'performance parameters are the following:'));
-% T.FontSize = "10pt";
-% T.Color = '#404040';
-% T.FontFamilyName = 'Arial';
-% add(R,T);
-% 
-% P = Paragraph();
-% append(P, Text(sprintf(' ')));
-% P.WhiteSpace = 'preserve';
-% add(R,P);
-
 txt = [bic_msg,nmse_msg,corr_msg];
 for t = 1 : length(txt)
     T = Text(strcat('-'," ",txt(t)));
@@ -214,29 +204,13 @@ my_title = 'FINAL PERFORMANCE';
 H4 = get_report_heading(4,my_title);
 add(R,H4);
 
-
 P = Paragraph();
 append(P, Text(sprintf(' ')));
 P.WhiteSpace = 'preserve';
 add(R,P);
 
-% T = Text(strcat('The final model was estimated', ...
-%     ' in the entire dataset, using the final', ...
-%     '  regularization parameters. Bellow are the', ...
-%     ' final regularization parameters, estimated through', ...
-%     ' a nested cross-validation procedure, and the degrees', ...
-%     ' of freedom (DOF) of the final model estimated:'));
-% T.FontSize = "10pt";
-% T.Color = '#404040';
-% T.FontFamilyName = 'Arial';
-% add(R,T);
-% 
-% P = Paragraph();
-% append(P, Text(sprintf(' ')));
-% P.WhiteSpace = 'preserve';
-% add(R,P);
 
-txt = [rho_msg,lambda_msg, df_msg];
+txt = [rho_msg, lambda_msg, df_msg];
 for t = 1 : length(txt)
     T = Text(strcat('-'," ",txt(t)));
     T.FontSize = "12pt";
@@ -249,30 +223,24 @@ end
 % Plot BOLD signal and BOLD estimate 
 % ------------------------------------------------------------
 
-% Only if image
-% generation is on 
-if report == 1 
-    
-    time = 0 : 1/fs : (length(bold)-1)*(1/fs);
+time = 0 : 1/fs : (length(bold)-1)*(1/fs);
 
-    % Plot predicted BOLD signal on top of original BOLD signal
-    fig = figure('Name', strcat('Predicted BOLD signal', ...
-        ' and original BOLD signal'));
-    fig.Position(3:4) = fig.Position(3:4)*5;
-    nmse_msg = upper(strcat('nmse: ', num2str(nmse_model)));
-    text(time(end)-50,-2,nmse_msg, 'FontSize', 22, ...
-        'FontName','Arial'); hold on;
-    plot(time, bold,'LineWidth',2.5,'Color','#1ca9df'); hold on; 
-    plot(time, yhat_model,'LineWidth',3,'Color','#4acb84');
-    legend('BOLD signal', 'BOLD estimate','FontSize',22, ...
-        'FontName','Arial');
-    xlabel('Time (s)','FontSize',22,'FontName','Arial');
-    ylabel('Amplitude','FontSize',22,'FontName','Arial');
-    grid on 
-    img_out = 'BOLD.png';
-    saveas(gcf,fullfile(path_img_out,img_out));
-
-end
+% Plot predicted BOLD signal on top of original BOLD signal
+fig = figure('Name', strcat('Predicted BOLD signal', ...
+    ' and original BOLD signal'));
+fig.Position(3:4) = fig.Position(3:4)*5;
+nmse_msg = upper(strcat('nmse: ', num2str(nmse_model)));
+text(time(end)-50,-2,nmse_msg, 'FontSize', 22, ...
+    'FontName','Arial'); hold on;
+plot(time, bold,'LineWidth',2.5,'Color','#1ca9df'); hold on; 
+plot(time, yhat_model,'LineWidth',3,'Color','#4acb84');
+legend('BOLD signal', 'BOLD estimate','FontSize',22, ...
+    'FontName','Arial');
+xlabel('Time (s)','FontSize',22,'FontName','Arial');
+ylabel('Amplitude','FontSize',22,'FontName','Arial');
+grid on 
+img_out = 'BOLD.png';
+saveas(gcf,fullfile(path_img_out,img_out));
 
 % ------------------------------------------------------------
 % Report BOLD signal and BOLD estimate
@@ -300,7 +268,7 @@ add(R,H4);
 efp_model = efp_model(2:end);
 
 % Reshape EEG coefficients matrix (EFP)
-efp_model = reshape(efp_model,efp_dim);
+efp_model = reshape(efp_model,dim);
 
 % Reshape EEG coefficients matrix 
 % for better visualization for plotting 
@@ -494,7 +462,7 @@ for d = 1 : n_delays
 
     subplot(2,3,d); 
     title(strcat(id_delays(d)," ", 'SECONDS'),'FontSize',14);
-    topoplot(signal(:,d),topo_settings{:});
+    topoplot(signal(:,d),chanlocs,topo_settings{:});
     colorbar; caxis([0 max_signal_abs]);   
 
 end
@@ -543,7 +511,7 @@ if n_bands > 1
 
         subplot(3,2,b); 
         title(strcat(upper(id_bands(b)), ' BAND'),'FontSize',14);
-        topoplot(abs(signal(:,b)),topo_settings{:});
+        topoplot(abs(signal(:,b)),chanlocs,topo_settings{:});
         colorbar; caxis([0 max_signal_abs]);   
 
     end
@@ -617,12 +585,12 @@ if n_bands > 1
     % Compute absolute frequency profiles at each delay
     efp_abs_freqbydel = ...
         squeeze(mean(reshape(abs(efp_model),...
-        efp_dim)));
+        dim)));
 
     % Compute average frequency profiles at each delay
     efp_avg_freqbydel = ...
         squeeze(mean(reshape(efp_model,...
-        efp_dim)));
+        dim)));
 
     % Plot frequency profiles of the values of the EFP, 
     % at each delay, averaged through channels 
@@ -702,11 +670,11 @@ if n_bands > 1
 
     % Compute average frequency profiles at each delay
     efp_avg_delbyfreq = squeeze(mean...
-        (reshape(efp_model,efp_dim)))';
+        (reshape(efp_model,dim)))';
 
     % Compute absolute frequency profiles at each delay
     efp_abs_delbyfreq = squeeze(mean...
-        (reshape(abs(efp_model),efp_dim)))';
+        (reshape(abs(efp_model),dim)))';
 
     % Plot average frequency profiles at each delay
     figure_name = strcat('Average delay profile across all', ...

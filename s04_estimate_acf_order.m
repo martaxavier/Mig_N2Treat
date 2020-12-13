@@ -1,12 +1,12 @@
 % Pre-allocate the matrix containing 
 % the order of the acf model for each 
 % subject 
-order = zeros(length(subjects),1);
+order = zeros(length(subjects), 1);
 
 % Only if some of the metrics specified
 % are performed with the deconvolved BOLD
-if contains(metrics,'deconv')
-    order_deconv = zeros(length(subjects),1);
+if contains(metrics, 'deconv')
+    order_deconv = zeros(length(subjects), 1);
 end
 
 % ------------------------------------------------------------
@@ -14,21 +14,26 @@ end
 % ------------------------------------------------------------
 for s = 1 : length(subjects)
     
+    % Create output directories, if non existent 
+    if ~exist(path_img_out, 'dir'); mkdir(path_img_out); end
+    if ~exist(path_pars_out, 'dir'); mkdir(path_pars_out); end
+    
     % Load and read BOLD data of current subject 
-    y = dlmread(fullfile(path_data_in(s),data_in));
+    y = dlmread(fullfile(path_data_in(s), data_in));
     
     % Estimate the order of the acf model 
     % for the BOLD time-series of the current 
     % subject 
     img_out = 'PAS_BOLD.png';
-    order(s) = get_acf_order(y,acf_conf,img_out);
+    order(s) = get_acf_order(y, acf_conf, path_img_out, img_out);
     
-    if contains(metrics,'deconv')
+    if contains(metrics, 'deconv')
             
         y_deconv = dlmread(fullfile(path_data_deconv_in(s), ...
             data_deconv_in));
         img_out = 'PAS_BOLD_DECONV.png';
-        order_deconv(s) = get_acf_order(y_deconv,acf_conf,img_out);
+        order_deconv(s) = get_acf_order(y_deconv, acf_conf, ...
+            path_img_out, img_out);
         
     end
     
@@ -39,17 +44,18 @@ end %finish looping through subjects
 % ------------------------------------------------------------
 
 % Create the output table 
-acf_order = table(subjects',order);
+subjs = subjects';
+acf_order = table(subjs, order);
 
 % Save table containing the estimated acf order for these
 % datasets 
-save(fullfile(path_pars_out,'acf_order.mat'),'acf_order');
+save(fullfile(path_pars_out, 'acf_order.mat'),'acf_order');
 
 % Repeat for deconvolved BOLD data 
-if contains(metrics,'deconv')
+if contains(metrics, 'deconv')
     acf_order = acf_order_deconv;
-    acf_order_deconv = table(subjects',order_deconv);
-    save(fullfile(path_pars_out,'acf_order_deconv.mat'), ...
+    acf_order_deconv = table(subjs, order_deconv);
+    save(fullfile(path_pars_out, 'acf_order_deconv.mat'), ...
         'acf_order');
 end
 
@@ -58,7 +64,11 @@ end
 % SUBFUNCTIONS 
 %/////////////////////////////////////////////////////////////
 
-function [order] = get_acf_order(y,conf,img_out)
+% ============================================================
+% [order] = get_acf_order(y, conf, path_img_out, img_out)           
+% ============================================================
+
+function [order] = get_acf_order(y, conf, path_img_out, img_out)
 
 %   [order] = get_arf_order(y) estimates the order 
 %   of the autoregressive function of input signal y
@@ -78,7 +88,7 @@ function [order] = get_acf_order(y,conf,img_out)
 
 % Fit an AR(p) model using aryule
 % to obtain the reflection coefficients 
-p = 20; [~,~,ref_coefs] = aryule(y,p);
+p = 20; [~, ~, ref_coefs] = aryule(y, p);
 
 % The negative of the reflection coefficients
 % is the partial autocorrelation sequence
@@ -99,18 +109,18 @@ order = outside(1);
 % Plot the PACS and the confidence interval
 %------------------------------------------------
 
-stem(pacs,'filled','Color',[0 0.4470 0.7410],'LineWidth',0.7)
-xlabel('Lag','FontSize',16);
-ylabel('Partial ACF','FontSize',16);
+stem(pacs, 'filled', 'Color', ...
+    [0 0.4470 0.7410], 'LineWidth', 0.7)
+xlabel('Lag', 'FontSize', 16);
+ylabel('Partial ACF', 'FontSize', 16);
 title('Partial Autocorrelation Sequence of Y',...
-    'FontSize',16); xlim([1 p]); hold on
-plot([1 p],[1 1]'*[lconf uconf],'Color', ...
-    [0.4660 0.6740 0.1880],'LineWidth',1);
+    'FontSize', 16);
+xlim([1 p]); hold on
+plot([1 p], [1 1]'*[lconf uconf], 'Color', ...
+    [0.4660 0.6740 0.1880], 'LineWidth', 1);
 grid on
 
-saveas(gcf,fullfile(path_img_out,img_out));
-
-
+saveas(gcf,fullfile(path_img_out, img_out));
 
 
 end

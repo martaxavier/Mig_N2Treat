@@ -1,11 +1,5 @@
-
-% ============================================================
-% [prob,but_one_prob] = test_topo_consistency(subj_stats_rho, ...
-%                       metric,n_rand)        
-% ============================================================
-
-function [prob,but_one_prob] = test_topo_consistency(...
-    subj_stats,metric,n_rand)
+function [prob, pval, but_one_prob] = test_topo_consistency(...
+    subj_stats, metric, n_rand)
 %
 %   [prob] = test_topo_consistency tests, for each metric, the 
 %            consistency of the group-level topographies, through  
@@ -41,7 +35,7 @@ rho = reshape(rho,[n_subjects dim]);
 % Generate #n_rand new rho matrices,
 % the same size as the input matrix,
 % for each subject 
-prob = global_rand_test(rho,n_rand,dim);
+[prob, pval] = global_rand_test(rho,n_rand,dim);
 
 but_one_prob = zeros([n_subjects size(prob)]);
 
@@ -63,7 +57,7 @@ end
 % [rand_rho] = global_rand_test(rho,n_rand,dim)         
 % ============================================================
 
-function [prob]=global_rand_test(rho,n_rand,dim)
+function [prob, pval] = global_rand_test(rho,n_rand,dim)
 
     n_subjects = size(rho,1);
     n_chans = dim(1);
@@ -94,7 +88,11 @@ function [prob]=global_rand_test(rho,n_rand,dim)
     % the average correlation values
     rms_rho = squeeze(rms(mean_rho));
 
-    prob = 100*sum(rms_rho(:,:,2:end)...
-        -rms_rho(:,:,1)>0,3)/n_rand;
+    prob = 100*sum( rms_rho(:, :, 2:end)...
+        - rms_rho(:, :, 1) > 0, 3) / n_rand;
+    
+    is_greater = rand_rho > repmat(rho, ...
+        1, 1, 1, 1, n_rand);
+    pval = sum(is_greater, 5) ./ n_rand;
 
 end

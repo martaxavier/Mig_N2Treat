@@ -7,10 +7,8 @@ set(0,'DefaultFigureVisible','on');
 
 fs=(1/1.26);
 hpf=0.01;
-subjs = ["sub-patient002","sub-patient003","sub-patient006",...
-    "sub-patient007", "sub-pilot011", ...
-    "sub-pilot015","sub-pilot018"];
-task = 'task-calib';
+subjs = "sub-patient005";
+task = 'task-rest';
 
 for s = 1 : length(subjs) 
     

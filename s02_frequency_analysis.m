@@ -46,7 +46,7 @@ for m = 1 : length(metrics)
         % Create subject ouput directory 
         % if not existent 
         if ~exist(path_img_out(s), 'dir')
-            mkdir(path_img_out)
+            mkdir(path_img_out(s))
         end
 
         %-----------------------------------------------------
@@ -100,7 +100,7 @@ for m = 1 : length(metrics)
         fig.Position(3:4) = fig.Position(3:4)*5;
 
         img_out = strcat(upper(metric),'_LOGTOPOPOWER.png');
-        source = fullfile(path_img_out,img_out);
+        source = fullfile(path_img_out(s),img_out);
         saveas(fig,source); I = Image(source);
         I.Style={ScaleToFit(true),HAlign('center')};
         add(R,I);
@@ -161,7 +161,7 @@ for m = 1 : length(metrics)
 
             img_out = strcat(id_bands(1),'5sec', ...
                 num2str(chan),'chan.png');
-            source = fullfile(path_img_in,img_out);
+            source = fullfile(path_img_in(s),img_out);
             I = Image(source);
             I.Style={ScaleToFit(true),HAlign('center')};
             add(R,I);   

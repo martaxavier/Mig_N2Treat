@@ -12,7 +12,7 @@ iptgetpref('ImshowInitialMagnification');
 % Specify parameters to be compared
 % between conditions by ANOVA 
 model_fields = "df";
-optimal_fields = ["bic","nmse","corr"];
+optimal_fields = ["bic_test","nmse_test","corr_test"];
 
 n_subjects = length(subjects);
 n_metrics = length(metrics);

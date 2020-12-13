@@ -6,7 +6,7 @@ iptgetpref('ImshowInitialMagnification');
 % Create a title for the report
 if flag.report ~= 0
     
-    my_title = strcat(reg_model, ' GROUP MODEL STATS');
+    my_title = strcat(upper(reg_model), ' GROUP MODEL STATS');
     H1 = get_report_heading(1,my_title);
     add(R,H1)  
     
@@ -30,6 +30,10 @@ for m = 1 : n_metrics
     % current metric
     get_metric_pars; 
     
+    if strcmp(reg_model,'l21_1') && n_bands == 1
+        continue
+    end
+    
     % Compute # of features
     n_features = prod(dim);
     
@@ -48,12 +52,12 @@ for m = 1 : n_metrics
         % model pair 
         model_in = strcat(metric,'_','model', ...
             '_',cv_method,'.mat');
-        load(fullfile(path_model_in(s,r),model_in));
+        load(fullfile(path_data_in(s,r),model_in));
         efp(:,s) = model.efp(2:end);    
         
     end % finish looping through subjects 
     
-    subj_stats{m,1}= model;
+    subj_stats{m,1}= efp;
         
 end % finish looping through metrics 
 
@@ -65,6 +69,10 @@ for m = 1 : n_metrics
     
     metric = metrics(m);
     
+    if strcmp(reg_model,'l21_1') && n_bands == 1
+        continue
+    end
+    
     % Broadcast the current pipeline stage 
     disp(strcat('Creating report of model group ', ...
         ' results for metric'," ",metric," ..."));
@@ -74,13 +82,18 @@ for m = 1 : n_metrics
     get_metric_pars;
     
     % Specify directory where images are to be saved 
-    path_img_metric_out = strcat(path_img_out,'\',metric);
+    path_img_metric_out = strcat(path_img_out(r),'\',metric);
 
     % Create directory where results are to be saved 
     if ~exist(path_img_metric_out, 'dir')
         mkdir(path_img_metric_out); 
     end    
 
+    % Create directory where results are to be saved 
+    if ~exist(path_data_out(r), 'dir')
+        mkdir(path_data_out(r)); 
+    end    
+    
     % Perform group-level stats using
     % the subject-level stats 
     gstats = perform_group_analysis...
@@ -92,12 +105,12 @@ for m = 1 : n_metrics
     % Save results of the group correlation
     % analysis for the current metric 
     model_out = strcat(metric,'_',data_out);
-    save(fullfile(path_data_out,data_out),'gstats');  
+    save(fullfile(path_data_out(r),data_out),'gstats');  
 
     % Perform the topographic consistency test
-    [prob,but_one_prob] = ...
+    [prob_consistency, pval_consistency, ~] = ...
         test_topo_consistency...
-        (cell2mat(subj_stats(m,1)),metric,n_rand);
+        (cell2mat(subj_stats(m,1)), metric, n_rand);
     
         
     % Add metric heading
@@ -114,11 +127,15 @@ for m = 1 : n_metrics
     % group-level model statistics 
     % results 
     if flag.report ~= 0
+                    
+        report_group_stats(group_stats,...
+            thresh_model, metric, R, prob_consistency, ...
+            pval_consistency, flag.report, path_img_metric_out);
         
-        plot_group_stats(group_stats,...
-            thresh_model,metric,R,prob, ...
-            flag.report,path_img_out);
-        
+        report_group_models(cell2mat(subj_stats(m,1)), ...
+            metric, R, prob_consistency, pval_consistency, ...
+            path_img_metric_out)
+
     end
     
 end % finish looping through metrics 

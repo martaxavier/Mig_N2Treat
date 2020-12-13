@@ -5,7 +5,7 @@
 alpha = (f_max/f_min)^(1/n_freq) - 1;
 
 % Full connectivity 
-if size(squeeze(dim)) == 4
+if length(squeeze(dim)) == 4
   
     % Create symmetrical matrix 
     conspec_T = permute(conspec,[1,2,4,3]);
@@ -23,7 +23,6 @@ if size(squeeze(dim)) == 4
         signal = squeeze(conspec_sym(:, :, plotting_channel, c));
 
         % Define colorscale 
-        %Dtf_f = log(abs(signal) + .005); 
         Dtf_f = signal; 
         
         my_title = strcat(upper(metric), ' between channels', ...
@@ -108,7 +107,7 @@ end
 if ~isempty(eeg_shift) 
 
     % Full connectivity 
-    if size(squeeze(dim)) == 4
+    if length(squeeze(dim)) == 4
     
         % Create symmetrical matrices  
         features_T = permute(eeg_features_norm,[1,3,2,4]);
@@ -201,7 +200,7 @@ if ~isempty(eeg_shift)
 
 end
         
-if size(squeeze(dim)) == 4
+if length(squeeze(dim)) == 4
     return
 end
 

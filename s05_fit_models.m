@@ -12,18 +12,18 @@ for m = 1 : length(metrics)
    % current metric 
    get_metric_pars;
    
-    % Continue if metric is not yet supported for model fitting 
-    if max(contains(metrics_not_yet_supported,eeg_metric))
-        display(strcat('Model wont be fitted for metric', ...
-            " ", metric,' because this metric is not yet', ...
-            'supported ...'));
+    if strcmp(reg_model,'l21_1') && n_bands == 1
+        disp(strcat('Model wont be fitted for metric', ...
+            " ", metric, ' because this metric is not', ...
+            ' supported for regression method', " ", ...
+            reg_model, '...'));
         continue
     end
     
     % Load optimal CV parameters K and V for current metric 
-    cv_pars_in = strcat(cv_method,'_',metric,'.mat');
-    load(fullfile(path_pars_in,cv_pars_in),'cvpars');
-    k = cvpars.K; v = cvpars.V;
+    cv_pars_in = strcat(reg_model,'_',cv_method,'_',metric,'.mat');
+    load(fullfile(path_pars_in,cv_pars_in),'cv_pars');
+    k = cv_pars.K; v = cv_pars.V;
 
     % Load estimated order of the ACF for current metric 
     if strcmp(bold_shift,'deconv')
@@ -42,8 +42,9 @@ for m = 1 : length(metrics)
 
         subject = subjects(s);          
 
-        display(strcat('Fitting model for'," ", ...
-            subject,','," ",metric,','," ",cv,'...'));
+        display(strcat('Fitting model for', " ", ...
+            subject, ',', " ", metric, ',', " ", ...
+            cv_method, ',', " ", reg_model, '...'));
 
         % Create output directory, if not existent 
         if ~exist(path_data_out(s), 'dir')
@@ -79,8 +80,8 @@ for m = 1 : length(metrics)
 
             case 'nondep'
                 
-                idx = find(ismember(acf_order.subject,subject));
-                order = acf_order.order(idx);
+                idx = find(ismember(table2array(acf_order),subject));
+                order = table2array(acf_order(idx,2));   
                 [model,optimal] = kfold_cv_nondep_par_v3...
                     (eeg,bold,'k',k,'regress',reg_model, ...
                     'autocorr',order,'sizx', ...
@@ -88,11 +89,12 @@ for m = 1 : length(metrics)
 
             case 'blocked'
 
-                idx = find(ismember(acf_order.subject,subject));
-                order = acf_order.order(idx);
-                [model,optimal] =  kfold_cv_blocked_par_v2(eeg,bold,...
+                idx = find(ismember(table2array(acf_order),subject));
+                order = table2array(acf_order(idx,2));
+                [model,optimal] =  kfold_cv_blocked_par_v3(eeg,bold,...
                     'k',k,'val2learn',v,'regress',reg_model,...
-                    'autocorr',order);
+                    'autocorr',order,'sizx', ...
+                    [length(bold) prod(dim)]);
 
         end 
 

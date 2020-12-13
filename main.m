@@ -14,7 +14,7 @@ flag.process_bold_imgs = 0;
 flag.extract_eeg_markers = 0;
 
 % LEVEL 1 
-flag.compute_features = 1;
+flag.compute_features = 0;
 flag.deconvolve_bold = 0;
 
 % LEVEL 2
@@ -33,7 +33,7 @@ flag.fit_models = 0;
 flag.report_models = 0;
 
 % LEVEL 6
-flag.group_model_stats = 0;
+flag.group_model_stats = 1;
 
 % LEVEL 7
 flag.compare_model_performance = 0;
@@ -203,7 +203,7 @@ if flag.compute_features
     data_out_conv = filename.eeg_feature_conv;
     data_out_delay = filename.eeg_feature_delay;
     path_data_out = path.eeg_feature;
-    path_img_out = strcat('IMAGES\',path_data_out);
+    path_img_out = strcat('IMAGES\',path_data_out,'\features');
         
     % Compute power features if any supported
     % power feature metric exists in metrics 
@@ -304,7 +304,7 @@ if flag.frequency_analysis
     % Define input/output data/paths
     data_in = filename.eeg_feature_eeg_fs;
     path_data_in = path.eeg_feature;
-    path_data_out = path.eeg_feature_frequency;
+    path_data_out = path.frequency;
     path_img_in = strcat('IMAGES\',path_data_in);
     path_img_out = strcat('IMAGES\',path_data_out);
     path_report_out = path.report;
@@ -453,7 +453,8 @@ if flag.optimize_cv_pars
         
         % Define input/output data/paths 
         path_eeg_in = path.eeg_feature;
-        path_bold_in = path.bold_processed;       
+        path_bold_in = path.bold_processed; 
+        path_pars_in = path.pars;
         path_pars_out = path.pars;
                 
         % Optimize CV parameters 
@@ -511,9 +512,9 @@ if flag.report_models
     % Define input/output data/paths  
     path_eeg_in = path.eeg_feature;
     path_bold_in = path.bold_processed;
-    path_model_in = path.model;
+    path_data_in = path.model;
     
-    path_img_out = strcat('IMAGES\',path_model_in);
+    path_img_out = strcat('IMAGES\',path_data_in);
     path_pars_in = path.pars;
     path_report_out = path.report;
     

@@ -9,9 +9,10 @@
 % then this is a fixed parameter for the entire pipeline. 
 
 % Subjects 
-subjects = ["sub-patient002" "sub-patient003", ...
-     "sub-patient005", "sub-patient006","sub-patient007", ...
-     "sub-patient008", "sub-pilot015","sub-pilot018"];
+subjects = ["sub-patient002", "sub-patient003", ...
+       "sub-patient005", "sub-patient006", "sub-patient007", ...
+       "sub-patient008", "sub-pilot011", "sub-pilot015", ...
+       "sub-pilot018"];
 
 % Task          -
 % 'task-rest','task-calib'
@@ -35,15 +36,20 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-metrics = ["icoh"];
+metrics = ["lc4", "lc6", "rmsf", "tp"];
 
 % Regression models 
 % 'l21_1','elasticnet'
-reg_models = ["l21_1","elasticnet"];   
+reg_models = "l21_1";   
 
 % Cross-validation method
 % 'nondep','regular','blocked'
-cv_method = "nondep";                
+cv_method = "nondep";     
+
+% Surrogate method for statistical
+% filtering of the connectivity
+% 'block_shuffle', 'phase_shuffle'
+surrogate_method = 'block_shuffle';
 
 % Threshold of the DMN mask
 dmn_thr = 1;
@@ -77,24 +83,29 @@ lowpass_filter = 40;
 
 % Windows for TF decomposition 
 tf_sliding_window_seconds = 4;  
-tf_wavelet_kernel_seconds = 2;     
+tf_wavelet_kernel_seconds = 2; 
+
+% Number of windows for 
+% Welch's method 
+n_wins_welch = 8;
+
+% Number of surrogates for 
+% statistical filtering of
+% the connectivity estimates 
+n_surrogates = 300;
 
 % Window for HRF convolution 
 hrf_kernel_seconds = 32;       
 
 % Supported power and connectivity metrics 
-power_metrics = ["lc4","rmsf","tp"];
-connectivity_metrics = ["icoh","icoh_wnd"];
-
-% EEG feature metrics not yet
-% supported for fitting 
-metrics_not_yet_supported = ["rmsf","tp"];
+power_metrics = ["lc4","lc6","rmsf","tp"];
+connectivity_metrics = ["icoh_wnd", "icoh_cc"];
 
 % Confidence level for the
 % auto-regressive model used
 % to model the EEG and BOLD
 % time-series 
-acf_conf = 0.95;
+acf_conf = 0.99;
 
 % Dimensions of BOLD 
 % images 
@@ -245,8 +256,8 @@ path.bold_img_deconv =      strcat('DERIVATIVES\',fullfile(data_path{:}), ...
                             '\func\',method_path{1});
 
 % EEG Frequency 
-path.frequency =            strcat('RESULTS\',fullfile(data_path{:}), ...
-                            'eeg\frequency_analysis\',method_path{1});
+path.frequency =            strcat('DERIVATIVES\',fullfile(data_path{:}), ...
+                            '\eeg\',method_path{2},'\frequency_analysis\');
 
 % EEG-BOLD Correlation 
 path.correlation =          strcat('RESULTS\',fullfile(data_path{:}), ...
@@ -272,7 +283,7 @@ path.model_group =          strcat('RESULTS\GROUP\', ...
 % Model Performance 
 cat =                       [fullfile(method_path{:}) strcat(fullfile...
                             (method_path{1:2}),'\',strjoin(reg_models, ...
-                            "_vs_"),'\',cv_method)];
+                            '_vs_'),'\',cv_method)];
 path.compare_performance =  strcat('RESULTS\GROUP\', ...
                             fullfile(data_path{2:3}), ...
                             '\performance\',cat);                                       

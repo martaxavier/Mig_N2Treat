@@ -42,7 +42,12 @@ n_pnts = size(data,2);
 n_pnts_power = round((n_pnts - 1)*(fs_power/fs_data) + 1);
 
 % Pre-allocate the output matrix 
-power = zeros(n_freq,n_pnts_power,n_chans);
+switch tf_method
+    case 'wavelet'
+        power = zeros(n_freq,n_pnts,n_chans);
+    case 'welch'
+        power = zeros(n_freq,n_pnts_power,n_chans);
+end
 
 % Go through channels 
 for channel = 1 : n_chans

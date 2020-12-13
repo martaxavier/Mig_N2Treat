@@ -10,7 +10,7 @@
 %           time-frequency spectrum of the EEG data 
 %
 %       3)  Convolution of all features with a range of HRFs/
-%           shifting of all features with a range of delays 
+%           shifting of all features with a Frange of delays 
 %
 %       4)  Prunning of all features according to the beginning 
 %           and end of the simultaneous BOLD acquisition/ according
@@ -119,7 +119,6 @@ for m = 1 : length(metrics)
             
         end
 
-
         %---------------------------------------------------------    
         % Remove outliers 
         %---------------------------------------------------------
@@ -127,16 +126,18 @@ for m = 1 : length(metrics)
         % Remove feature time-points that are 10 times greater
         % than the features' standard deviation 
         
-        % Reshape the feature matrix to have 2 dimensions 
+        % Reshape the feature matrix to have 2 dimensions
+        siz = size(eeg_features);
         eeg_features = reshape(eeg_features,[n_pnts, ...
             numel(eeg_features(1, :, :, :))]);
         
         % Define the outlier threshold for each feature 
-        out_thresh = repmat(10*std(features),[n_pnts 1]);
-        eeg_features(eeg_features>out_thresh) = out_thresh;
+        out_thresh = repmat(10*std(eeg_features),[n_pnts 1]);
+        eeg_features(eeg_features>out_thresh) = ...
+            out_thresh(eeg_features>out_thresh);
         
         % Reshape feature matrix into its original dimension 
-        eeg_features = reshape(eeg_features, [n_pnts dim]);
+        eeg_features = reshape(eeg_features, siz);
 
         %---------------------------------------------------------    
         % Mirror padd the signal before convolution  
@@ -189,10 +190,10 @@ for m = 1 : length(metrics)
 
                 % Permute resulting matrix to have bands at the end
                 if n_bands > 1
-                    siz = eeg_features_delayed;
+                    perm = 1 : ndims(squeeze(eeg_features_delayed));
                     eeg_features_delayed = permute...
                         (eeg_features_delayed, ...
-                        [siz(1:end-2) siz(end) siz(end-1)]);
+                        [perm(1:end-2) perm(end) perm(end-1)]);
                 end
                 
                 % Prune the features to match the BOLD acquisition
@@ -279,7 +280,7 @@ for m = 1 : length(metrics)
 
                 % Use spline interpolation to downsample features 
                 eeg_features = permute(eeg_features, [3 2 1]);         
-                eeg_features = spline(time_eeg, eeg_features, time);         
+                eeg_features = spline(time_current, eeg_features, time);         
                 eeg_features = permute(eeg_features, [3 2 1]);                
 
                 if ~isempty(eeg_shift)
@@ -287,7 +288,7 @@ for m = 1 : length(metrics)
                     eeg_features_delayed = ...
                         permute(eeg_features_delayed, [4 3 2 1]);    
                     eeg_features_delayed = ...
-                        spline(time_eeg, eeg_features_delayed, time);
+                        spline(time_current, eeg_features_delayed, time);
                     eeg_features_delayed = ...
                         permute(eeg_features_delayed, [4 3 2 1]);  
                     
@@ -306,11 +307,12 @@ for m = 1 : length(metrics)
 
         if ~isempty(eeg_shift)
        
-            eeg_features_delayed_norm = zscore(reshape...
-                (eeg_features_delayed, [n_pnts, numel...
-                (eeg_features_delayed(1, :, :, :))]));
-            eeg_features_delayed_norm = reshape...
-                (eeg_features_delayed_norm, size(eeg_features_delayed));
+            eeg_features_delayed_norm = ...
+                zscore(reshape(eeg_features_delayed, [n_pnts, ...
+                numel(eeg_features_delayed(1, :, :, :))]));
+            eeg_features_delayed_norm = ...
+                reshape(eeg_features_delayed_norm, ...
+                size(eeg_features_delayed));
             
         end
 
@@ -360,7 +362,8 @@ for m = 1 : length(metrics)
         eeg_features_norm = reshape(eeg_features_norm, ...
             [n_pnts,numel(eeg_features_norm(1,:,:))]);
         eeg_features_eeg_fs = reshape(eeg_features_eeg_fs, ...
-            [n_pnts_eeg,numel(eeg_features_eeg_fs(1,:,:))]);
+            [size(eeg_features_eeg_fs,1), ...
+            numel(eeg_features_eeg_fs(1,:,:))]);
         
         if ~isempty(eeg_shift)
             

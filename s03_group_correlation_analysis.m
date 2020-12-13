@@ -38,7 +38,7 @@ for m = 1 : n_metrics
        
     % Pre-allocate correlation stats variables
     rho = zeros(n_features,n_subjects);
-    pval = zeros(n_features,n_subjects);
+    pval_consistency = zeros(n_features,n_subjects);
     
     for s = 1 : n_subjects
         
@@ -47,12 +47,12 @@ for m = 1 : n_metrics
         % Load subject-level correlation results 
         corr_in = strcat(metric,'_',data_in);
         load(fullfile(path_data_in(s),corr_in),'stats');
-        rho(:,s) = stats.rho; pval(:,s) = stats.pval; 
+        rho(:,s) = stats.rho; pval_consistency(:,s) = stats.pval; 
         
     end % finish looping through subjects
       
     subj_stats{m,1}= rho;
-    subj_stats{m,2} = pval;
+    subj_stats{m,2} = pval_consistency;
     
 end % finish looping through metrics 
 
@@ -84,9 +84,9 @@ for m = 1 : n_metrics
     save(fullfile(path_data_out,corr_out),'gstats');  
 
     % Perform the topographic consistency test
-    [prob,but_one_prob] = ...
+    [prob_consistency, pval_consistency, ~] = ...
         test_topo_consistency...
-        (cell2mat(subj_stats(m,1)),metric,n_rand);
+        (cell2mat(subj_stats(m,1)), metric, n_rand);
 
     % Add metric heading 
     % to the report 
@@ -104,8 +104,8 @@ for m = 1 : n_metrics
     if flag.report ~= 0
         
         report_group_stats(group_stats, ...
-            thresh_corr,metric,R,prob,flag.report, ...
-            path_img_out);
+            thresh_corr, metric, R, prob_consistency, ...
+            pval_consistency, flag.report, path_img_out);
         
     end
 
