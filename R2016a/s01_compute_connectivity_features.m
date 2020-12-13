@@ -132,8 +132,8 @@ for m = 1 : length(con_metrics)
 
         % Perform topological filtering of the connectivity matrix
         % using Orthogonalized Minimal Spanning Trees 
-        [conspec_topo, decision_topo] = topological_filtering(conspec_sig, ...
-            decision); 
+        [conspec_topo, decision_topo] = ...
+            topological_filtering(conspec_sig); 
 
         % Save decision matrices and filtered connectivity matrix
         % in the output directory

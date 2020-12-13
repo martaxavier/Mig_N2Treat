@@ -19,8 +19,10 @@ get_metric_pars
 n_pnts_cspec = round((n_pnts - 1)*(fs_cspec/fs_data) + 1);
 
 % Pre-allocate matrix of all connectivity surrogates 
-conspec_surr = zeros(n_freq, n_pnts_cspec, ...
-    n_chans, n_chans, n_surrogates);
+conspec_surr = zeros(n_pnts_cspec, n_chans, ...
+    n_chans, n_bands, n_surrogates);
+
+bands = bands;
 
 %---------------------------------------------------------    
 % Generate connectivity surrogates  
@@ -28,6 +30,7 @@ conspec_surr = zeros(n_freq, n_pnts_cspec, ...
 parfor s = 1 : n_surrogates
     
     data_par = data; 
+    bands_par = bands;
     
     % Generate surrogate time-series 
     switch surrogate_method
@@ -73,7 +76,7 @@ parfor s = 1 : n_surrogates
 
     % Average connectivity for each frequency band 
     conspec_surr_par = average_frequency...
-        (conspec_surr_par, f_vector, bands);
+        (conspec_surr_par, f_vector, bands_par);
         
     conspec_surr(:,:,:,:,s) = conspec_surr_par;
     

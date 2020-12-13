@@ -119,6 +119,9 @@ for m = 1 : length(con_metrics)
         % Statistical filtering  
         %---------------------------------------------------------
 
+        disp(strcat('Filtering the connectome of', ... 
+            " ", subject,', metric'," ", metric, ' ...'));
+        
         % Compute surrogates of the connectivity matrix to perform 
         % statistical filtering and remove non-significant connections 
         [conspec_sig, decision_sig, p_thresh_corrected] = ...
@@ -132,8 +135,8 @@ for m = 1 : length(con_metrics)
 
         % Perform topological filtering of the connectivity matrix
         % using Orthogonalized Minimal Spanning Trees 
-        [conspec_topo, decision_topo] = topological_filtering(conspec_sig, ...
-            decision); 
+        [conspec_topo, decision_topo] = ...
+            topological_filtering(conspec_sig); 
 
         % Save decision matrices and filtered connectivity matrix
         % in the output directory
@@ -160,6 +163,9 @@ for m = 1 : length(con_metrics)
             metric = full_metric;
             get_metric_pars;
             
+            disp(strcat('Computing', " ", net_metric, ' of', ... 
+                " ", subject,', metric'," ", metric, ' ...'));
+        
             eeg_features = compute_network_metric(conspec_topo, ...
                 net_metric); 
         

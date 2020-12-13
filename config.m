@@ -36,7 +36,8 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-metrics = ["lc4", "lc6", "rmsf", "tp"];
+%metrics = ["lc4", "lc6", "rmsf", "tp"];
+metrics = "icoh_wnd";
 
 % Regression models 
 % 'l21_1','elasticnet'
@@ -75,7 +76,7 @@ fs_analysis = 4;            % Analysis intermediate sampling frequency
 % Frequency range (Hz)
 f_min = 1;
 f_max = 30;
-n_freq = 100;
+n_freq = 30;
 
 % EEG filters (Hz)
 highpass_filter = 1;          
@@ -92,7 +93,7 @@ n_wins_welch = 8;
 % Number of surrogates for 
 % statistical filtering of
 % the connectivity estimates 
-n_surrogates = 300;
+n_surrogates = 2;
 
 % Window for HRF convolution 
 hrf_kernel_seconds = 32;       
