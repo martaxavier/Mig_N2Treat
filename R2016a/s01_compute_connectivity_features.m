@@ -107,6 +107,9 @@ for m = 1 : length(con_metrics)
         % Average connectivity for each frequency band 
         conspec_avg = average_frequency(conspec, f_vector, bands);
         
+        % Turn lower triangular into symmetric connectivity matrix 
+        [conspec_avg] = tril2symmetric(conspec_avg);
+        
          %---------------------------------------------------------    
          % Plots and report of connectivity spectrum 
          %--------------------------------------------------------- 
@@ -121,10 +124,11 @@ for m = 1 : length(con_metrics)
 
         % Compute surrogates of the connectivity matrix to perform 
         % statistical filtering and remove non-significant connections 
-        [conspec_sig, decision_sig, p_thresh_corrected] = ...
-            statistical_filtering(data, [f_min f_max], n_freq, ...
-            n_wins_welch, tf_sliding_window_seconds, fs_eeg, fs, ...
-            con_metric, conspec_avg, surrogate_method, n_surrogates); 
+%         [conspec_sig, decision_sig, p_thresh_corrected] = ...
+%             statistical_filtering(data, [f_min f_max], n_freq, ...
+%             n_wins_welch, tf_sliding_window_seconds, fs_eeg, fs, ...
+%             con_metric, conspec_avg, surrogate_method, n_surrogates); 
+        conspec_sig = conspec_avg;
         
         %---------------------------------------------------------    
         % Topological filtering  
@@ -137,16 +141,20 @@ for m = 1 : length(con_metrics)
 
         % Save decision matrices and filtered connectivity matrix
         % in the output directory
-        decision_sig_out = strcat('decision_sig_',con_metric,'.mat');
-        decision_topo_out = strcat('decision_topo_',con_metric,'.mat');
-        conspec_out = strcat('conspec_filtered_',con_metric,'.mat');
-        save(char(fullfile(path_data_out(s), decision_sig_out)), 'decision_sig');
-        save(char(fullfile(path_data_out(s), decision_topo_out)), 'decision_topo');
-        save(char(fullfile(path_data_out(s), conspec_out)), 'conspec_topo');
+%         decision_sig_out = strcat('decision_sig_',con_metric,'.mat');
+%         decision_topo_out = strcat('decision_topo_',con_metric,'.mat');
+%         conspec_out = strcat('conspec_filtered_',con_metric,'.mat');
+%         save(char(fullfile(char(path_data_out(s), decision_sig_out))), ...
+%             'decision_sig');
+%         save(char(fullfile(path_data_out(s), decision_topo_out)), ...
+%             'decision_topo');
+%         save(char(fullfile(path_data_out(s), conspec_out)), ...
+%             'conspec_topo');
                     
         % Save p-value of connectivity significance, corrected by FDR
-        p_out = strcat('p_thresh_corrected_', con_metric, '.mat');
-            save(char(fullfile(path_data_out(s), p_out)), 'p_thresh_corrected');
+%         p_out = strcat('p_thresh_corrected_', con_metric, '.mat');
+%             save(char(fullfile(char(path_data_out(s), p_out))), ...
+%                 'p_thresh_corrected');
 
         %---------------------------------------------------------    
         % Compute network measure 
@@ -298,20 +306,13 @@ for m = 1 : length(con_metrics)
             % Build final feature matrices to be written in file        
             % Build final feature matrices to be written in file        
             eeg_features_norm = reshape(eeg_features_norm, ...
-                [n_pnts, numel(eeg_features_norm(1, :, :, :))]);
-
-            % Delete the channel pairs that correspond to redundant 
-            % channel pairs 
-            if length(squeeze(dim)) == 4
-                eeg_features_norm = eeg_features_norm(:, find(repmat...
-                    (tril(ones(n_chans), -1), [1 1 n_bands])));
-            end
+                [n_pnts, numel(eeg_features_norm(1, :, :))]);
 
             if ~isempty(eeg_shift)
 
                 eeg_features_delayed_norm = reshape(...
                     eeg_features_delayed_norm, [n_pnts, ...
-                    numel(eeg_features_delayed_norm(1, :, :, :, :))]);
+                    numel(eeg_features_delayed_norm(1, :, :, :))]);
 
             end
 

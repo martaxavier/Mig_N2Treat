@@ -104,7 +104,7 @@ omst=[];
        mst(links(k,2),links(k,1))=CIJ(links(k,1),links(k,2));
     end
     
-    % now add connections back, with the total number of added connections 
+% now add connections back, with the total number of added connections 
 % determined by the desired 'avgdeg'
 CIJnotintree = CIJnotintree.*~CIJtree;
 
@@ -157,26 +157,28 @@ while delta > 0
     end
     
     % now add connections back, with the total number of added connections 
-% determined by the desired 'avgdeg'
-CIJnotintree = CIJnotintree.*~CIJtree;
+    % determined by the desired 'avgdeg'
+    CIJnotintree = CIJnotintree.*~CIJtree;
 
-nCIJtree(counter,:,:)=CIJtree;
-omst(counter,:,:)=mst;
+    nCIJtree(counter,:,:)=CIJtree;
+    omst(counter,:,:)=mst;
 
 
-[gl_node E_ini]=global_efficiency_wu(1./CIJ);
-cost_ini=sum(CIJ(:));
+    [gl_node E_ini]=global_efficiency_wu(1./CIJ);
+    cost_ini=sum(CIJ(:));
 
-%%%%%%%% insert the 1st MST
+    %%%%%%%% insert the 1st MST
 
-graph=squeeze(nCIJtree(counter,:,:));
-   [deg] = degrees_und(graph);
-   degree(counter)=mean(deg);
+    graph=squeeze(nCIJtree(counter,:,:));
+    [deg] = degrees_und(graph);
+    degree(counter)=mean(deg);
     cost(counter)=sum(0.5*graph(:))./cost_ini;
     [gl_node E]=global_efficiency_wu(1./graph);
     globalcosteff(counter)=E/E_ini-(cost(counter));
     
     delta = globalcosteff(counter) - globalcosteff(counter-1); 
+    %disp(counter); disp(delta); 
+    
 end
 
 

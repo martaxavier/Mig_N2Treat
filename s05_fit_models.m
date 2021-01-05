@@ -12,13 +12,13 @@ for m = 1 : length(metrics)
    % current metric 
    get_metric_pars;
    
-    if strcmp(reg_model,'l21_1') && n_bands == 1
-        disp(strcat('Model wont be fitted for metric', ...
-            " ", metric, ' because this metric is not', ...
-            ' supported for regression method', " ", ...
-            reg_model, '...'));
-        continue
-    end
+%     if strcmp(reg_model,'l21_1') && n_bands == 1
+%         disp(strcat('Model wont be fitted for metric', ...
+%             " ", metric, ' because this metric is not', ...
+%             ' supported for regression method', " ", ...
+%             reg_model, '...'));
+%         continue
+%     end
     
     % Load optimal CV parameters K and V for current metric 
     cv_pars_in = strcat(reg_model,'_',cv_method,'_',metric,'.mat');

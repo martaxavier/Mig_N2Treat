@@ -107,6 +107,9 @@ for m = 1 : length(con_metrics)
         % Average connectivity for each frequency band 
         conspec_avg = average_frequency(conspec, f_vector, bands);
         
+        % Turn lower triangular into symmetric connectivity matrix 
+        [conspec_avg] = tril2symmetric(conspec_avg);
+        
          %---------------------------------------------------------    
          % Plots and report of connectivity spectrum 
          %--------------------------------------------------------- 

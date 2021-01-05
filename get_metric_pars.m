@@ -316,7 +316,7 @@ switch metric
         n_chans =       length(chans);
         n_delays =      length(delays);
         n_bands =       size(bands,2);
-        dim =           [n_chans, n_chans, n_delays, n_bands];  
+        dim =           [n_chans, n_delays, n_bands];  
         
     case 'icoh_cc'
         
@@ -337,6 +337,6 @@ switch metric
         n_chans =       length(chans);
         n_delays =      length(delays);
         n_bands =       size(bands,2);
-        dim =           [n_chans, n_chans, n_delays, n_bands];  
+        dim =           [n_chans, n_delays, n_bands];  
         
 end

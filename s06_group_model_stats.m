@@ -30,9 +30,9 @@ for m = 1 : n_metrics
     % current metric
     get_metric_pars; 
     
-    if strcmp(reg_model,'l21_1') && n_bands == 1
-        continue
-    end
+%     if strcmp(reg_model,'l21_1') && n_bands == 1
+%         continue
+%     end
     
     % Compute # of features
     n_features = prod(dim);
@@ -69,9 +69,9 @@ for m = 1 : n_metrics
     
     metric = metrics(m);
     
-    if strcmp(reg_model,'l21_1') && n_bands == 1
-        continue
-    end
+%     if strcmp(reg_model,'l21_1') && n_bands == 1
+%         continue
+%     end
     
     % Broadcast the current pipeline stage 
     disp(strcat('Creating report of model group ', ...

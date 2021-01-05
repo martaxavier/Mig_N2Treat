@@ -19,9 +19,9 @@ for m = 1 : n_metrics
     % for current metric
     get_metric_pars
     
-    if strcmp(reg_model,'l21_1') && n_bands == 1
-        continue
-    end
+%     if strcmp(reg_model,'l21_1') && n_bands == 1
+%         continue
+%     end
     
     % Load matrix containing the optimal 
     % delay for the BOLD deconvolution 
@@ -76,7 +76,10 @@ for m = 1 : n_metrics
         % model pair 
         model_in = strcat(metric,'_','model', ...
             '_',cv_method,'.mat');
+        folds_in = strcat(metric,'_','model_folds', ...
+            '_',cv_method,'.mat');
         load(fullfile(path_data_in(s,r),model_in));
+        load(fullfile(path_data_in(s,r),folds_in));
         
         % Save estimated deconvolution 
         % delay for current subject 
@@ -93,7 +96,7 @@ for m = 1 : n_metrics
         add(R,H3);
 
         % Plot and/or report model results (EFP)
-        plot_efp(bold, model, reg_model, metric, ...
+        plot_efp(bold, model, optimal, reg_model, metric, ...
             deconv_delay, fs, R, flag.report, ...
             path_img_metric_out);
 
@@ -106,7 +109,7 @@ end % finish looping through subjects
 % SUBFUNCTIONS 
 %/////////////////////////////////////////////////////////////
 
-function [] = plot_efp(bold, model, reg_model, metric, ...
+function [] = plot_efp(bold, model, optimal, reg_model, metric, ...
     deconv_delay, fs, R, report, path_img_out)
 
 % ------------------------------------------------------------
@@ -145,9 +148,10 @@ lambda_model =  model.lambda;
 rho_model =     model.rho; 
 df_model =      model.df;
 yhat_model =    model.yhat;
-bic_model =     model.bic;
 nmse_model =    model.nmse;
-corr_model =    model.corr;
+bic_test =      mean(optimal.bic_test);
+nmse_test =     mean(optimal.nmse_test);
+corr_test =     mean(optimal.corr_test);
 
 % ------------------------------------------------------------
 % Plot model variables - performance and final model
@@ -161,9 +165,9 @@ else; id_rho = 'Alpha'; end
 rho_msg = strcat(id_rho,' final model:'," ", num2str(rho_model));
 lambda_msg = strcat('Lambda final model:'," ", num2str(lambda_model));
 df_msg = strcat('DOF final model:'," ", num2str(df_model));
-bic_msg = strcat('Average BIC:'," ", num2str(bic_model)); 
-nmse_msg = strcat('Average NMSE:'," ", num2str(nmse_model));
-corr_msg = strcat('Average correlation:'," ", num2str(corr_model));
+bic_msg = strcat('Average BIC (test):'," ", num2str(bic_test)); 
+nmse_msg = strcat('Average NMSE (test):'," ", num2str(nmse_test));
+corr_msg = strcat('Average correlation (test):'," ", num2str(corr_test));
 message = {rho_msg, lambda_msg, df_msg, bic_msg, nmse_msg, corr_msg};
 
 figure('Name','Model variables'); title('Model variables')
@@ -229,9 +233,9 @@ time = 0 : 1/fs : (length(bold)-1)*(1/fs);
 fig = figure('Name', strcat('Predicted BOLD signal', ...
     ' and original BOLD signal'));
 fig.Position(3:4) = fig.Position(3:4)*5;
-nmse_msg = upper(strcat('nmse: ', num2str(nmse_model)));
-text(time(end)-50,-2,nmse_msg, 'FontSize', 22, ...
-    'FontName','Arial'); hold on;
+%nmse_msg = upper(strcat('nmse: ', num2str(nmse_model)));
+%text(time(end)-50,-2,nmse_msg, 'FontSize', 22, ...
+%    'FontName','Arial'); hold on;
 plot(time, bold,'LineWidth',2.5,'Color','#1ca9df'); hold on; 
 plot(time, yhat_model,'LineWidth',3,'Color','#4acb84');
 legend('BOLD signal', 'BOLD estimate','FontSize',22, ...
@@ -269,6 +273,40 @@ efp_model = efp_model(2:end);
 
 % Reshape EEG coefficients matrix (EFP)
 efp_model = reshape(efp_model,dim);
+
+
+% % Topographic maps of averaged (through delays and frequencies)
+% % average coefficient estimates  
+% fig_title = strcat('Topographic map of averaged',...
+%    ' (through delays and bands) coefficient estimates'); 
+% figure('Name',fig_title); signal = sum(sum(efp_model,3),2); 
+% topoplot(signal,chanlocs,'maplimits','maxmin',topo_settings{:}); 
+% colorbar; 
+% img_out = strcat('TOPO_AVGEFP.png');
+% saveas(gcf,fullfile(path_img_out,img_out));
+% 
+% 
+% % Topographic maps of averaged (through delays and frequencies)
+% % average coefficient estimates (absolute value)
+% fig_title = strcat('Topographic map (abs values) of averaged', ...
+%    ' (through delays and bands) coefficient estimates'); 
+% figure('Name',fig_title); signal = abs(sum(sum(efp_model,3),2));
+% topoplot(signal,chanlocs,topo_settings{:}); 
+% caxis([0 max(signal)]); colorbar; 
+% img_out = strcat('TOPO_AVGEFP_abs.png');
+% saveas(gcf,fullfile(path_img_out,img_out));
+% 
+% % Topographic maps of averaged (through delays and frequencies)
+% % absolute coefficient estimates  
+% fig_title = strcat('Topographic map of averaged (through', ...
+%    'delays and bands) absolute coefficient estimates'); 
+% figure('Name',fig_title); signal = sum(sum(abs(efp_model),3),2);
+% topoplot(signal,chanlocs,topo_settings{:});
+% colorbar; caxis([0 max(signal)]); 
+% img_out = strcat('TOPO_ABSEFP.png');
+% saveas(gcf,fullfile(path_img_out,img_out));
+% 
+% return
 
 % Reshape EEG coefficients matrix 
 % for better visualization for plotting 
@@ -399,9 +437,11 @@ end
 fig_title = strcat('Topographic map of averaged',...
    ' (through delays and bands) coefficient estimates'); 
 figure('Name',fig_title); signal = sum(sum(efp_model,3),2); 
-topoplot(signal,chanlocs,topo_settings{:}); 
-colorbar; img_out = strcat('TOPO_AVGEFP.png');
+topoplot(signal,chanlocs,'maplimits','maxmin',topo_settings{:}); 
+colorbar; 
+img_out = strcat('TOPO_AVGEFP.png');
 saveas(gcf,fullfile(path_img_out,img_out));
+
 
 % Topographic maps of averaged (through delays and frequencies)
 % average coefficient estimates (absolute value)
@@ -533,8 +573,10 @@ X_del = reordercats...
 if n_bands > 1 
 
     % Frequency labels for bar plots
-    X_freq = categorical(cellstr(upper(id_bands)));
-    X_freq = reordercats(X_freq,cellstr(upper(id_bands)));
+    X_freq = categorical(cellstr(strcat(repmat("\", ...
+        1, n_bands), lower(id_bands))));
+    X_freq = reordercats(X_freq,cellstr(strcat(repmat("\", ...
+        1, n_bands), lower(id_bands))));
 
     % ---------------------------------------------
     % Frequency profiles - all delays and chans

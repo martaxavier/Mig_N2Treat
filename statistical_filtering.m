@@ -77,7 +77,9 @@ parfor s = 1 : n_surrogates
     % Average connectivity for each frequency band 
     conspec_surr_par = average_frequency...
         (conspec_surr_par, f_vector, bands_par);
-        
+    
+    % Turn lower triangular into symmetric matrix 
+    conspec_surr_par = tril2symmetric(conspec_surr_par);   
     conspec_surr(:, :, :, :, s) = conspec_surr_par;
     
 end
@@ -99,4 +101,5 @@ p_values = sum(is_greater, 5) ./ n_surrogates;
 
 % Set to zero connectivity values that 
 % didn't survive the significance test
-conspec_sig = conspec(decision); 
+conspec_sig = zeros(size(conspec));
+conspec_sig(decision) = conspec(decision); 

@@ -14,7 +14,7 @@ flag.process_bold_imgs = 0;
 flag.extract_eeg_markers = 0;
 
 % LEVEL 1 
-flag.compute_features = 1;
+flag.compute_features = 0;
 flag.deconvolve_bold = 0;
 
 % LEVEL 2
@@ -36,12 +36,12 @@ flag.report_models = 0;
 flag.group_model_stats = 0;
 
 % LEVEL 7
-flag.compare_model_performance = 0;
+flag.compare_model_performance = 1;
 
 % REPORT 
-flag.report = 1;    % 2 to generate report + report images
+flag.report = 2;    % 2 to generate files + report + report images (fast,default)
                     % 1 to generate files + report + all images (slow)
-                    % 0 to generate only output files 
+                    % 0 to generate only output files (no report or images)
 
 %------------------------------------------------------------------
 % Execute analysis pipeline 
@@ -79,14 +79,6 @@ end
 % -------------------------------------------------
 if flag.process_eeg
     
-    % I HAVE TO REMOVE THESE RETURNS
-    % SINCE THEY LEAVE THE SCRIPT
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
-    
     % Define input/output data/path
     data_in = filename.eeg_raw; 
     data_out = filename.eeg_processed;
@@ -102,12 +94,6 @@ end
 % Process BOLD
 % -------------------------------------------------
 if flag.process_bold
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
     
     % Define input/output data/path
     data_in = filename.bold_raw; 
@@ -125,19 +111,6 @@ end
 % Process BOLD images 
 % -------------------------------------------------
 if flag.process_bold_imgs
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
-    
-    % Leave if non of the metrics
-    % specified are performed with 
-    % the deconvolved BOLD signal 
-    if ~contains(metrics,'deconv')
-        return
-    end
     
     % Define input/output data/path
     data_bold_in = filename.bold_img_raw; 
@@ -158,12 +131,6 @@ end
 % -------------------------------------------------
 
 if flag.extract_eeg_markers
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
                
     % Define input/output data/paths
     data_in = filename.eeg_processed;
@@ -184,12 +151,6 @@ end
 % -------------------------------------------------
 all_metrics = metrics;
 if flag.compute_features
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
     
     % Define input/output data/paths
     data_in = filename.eeg_processed;        
@@ -240,13 +201,6 @@ metrics = all_metrics;
 % -------------------------------------------------
 
 if flag.deconvolve_bold
-    
-    % Leave if non of the metrics
-    % specified are performed with 
-    % the deconvolved BOLD signal 
-    if ~contains(metrics,'deconv')
-        return
-    end
     
     % Assign input/output data/paths, according
     % to the BOLD deconvolution method defined 
@@ -415,12 +369,6 @@ end
 % -------------------------------------------------
 if flag.estimate_acf_order
     
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
-    
     % Define input/output data/paths 
     data_in = filename.bold_processed;
     data_deconv_in = filename.bold_deconv;
@@ -439,12 +387,6 @@ end
 % Optimize Cross-Validation Parameters 
 % -------------------------------------------------
 if flag.optimize_cv_pars
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
     
     % Go through CV method 
     for r = 1 : length(reg_models)
@@ -470,13 +412,7 @@ end
 % Fit EEG-BOLD models
 % -------------------------------------------------
 if flag.fit_models
-    
-    % Leave if file generation 
-    % flag is turned off 
-    if flag.report == 2
-        return
-    end
-    
+
     % Define input/output data/paths 
     path_eeg_in = path.eeg_feature;
     path_bold_in = path.bold_processed;
@@ -502,12 +438,6 @@ end
 % Report EEG-BOLD Models
 % -------------------------------------------------
 if flag.report_models
-    
-    % Leave if image generation
-    % flag is turned off 
-    if flag.report == 0
-        return
-    end 
     
     % Define input/output data/paths  
     path_eeg_in = path.eeg_feature;

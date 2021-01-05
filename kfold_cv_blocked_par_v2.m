@@ -1,9 +1,9 @@
-function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
+function [model,optimal] = kfold_cv_blocked_par_v2(EEG,BOLD,varargin)
 
 %   [model,optimal] = kfold_cv(EEG,BOLD,...) performs blocked,  
 %   (non-dependent) nested k-fold cross-validation to obtain 
 %   the best model for the input EEG and BOLD data
-%   Version v3: pararelled computing; inner loop is also blocked 
+%   Version v2: pararelled computing; 
 %
 %   Input data:
 %
@@ -14,6 +14,7 @@ function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
 %
 %     'k'              The number of folds in the outer cv loop 
 %     'v'              The number of folds in the inner cv loop 
+%     'n'              The number of iterations in the inner cv loop 
 %     'regress'        The regression method used to fit the model
 %                      'elasticnet' or 'l21_1' 
 %     'autocorr'       The order of the auto-correlation function 
@@ -73,12 +74,12 @@ n_features = size(EEG, 2);
 % ------------------------------------------------------------ 
 
 % Assign default values for each optional parameter
-pnames = {'k' 'v' 'regress' 'rho' 'lambda',...
-    'numpars' 'sizx' 'autocorr'}; dflts  = { 10 ...
-    10 'l21_1' [] [] 20 [n_pnts 31*6 4] 2};
+pnames = {'k' 'v' 'n' 'regress' 'rho' 'lambda',...
+    'numpars' 'sizx' 'autocorr'}; dflts  = { 5 ...
+    5 10 'l21_1' [] [] 20 [n_pnts 31*6 4] 2};
 
 % Assign variables corresponding to optional parameters 
-[K, V, method, rho, lambda, n_pars, siz_X, h] = ...
+[K, V, N, method, rho, lambda, n_pars, siz_X, h] = ...
     internal.stats.parseArgs(pnames, dflts, varargin{:});
 
 % Check if the method provided is 
@@ -177,17 +178,14 @@ for k = 1 : K
     % Allocate bic and mse matrices for the learn and 
     % for the val set, each inner iteration through cols
     %bic_learn = zeros(n_pars,N); nmse_learn = bic_learn; 
-    bic_val = zeros(n_pars, V); nmse_val = bic_val;
-    df_inner = zeros(n_pars, V);
+    bic_val = zeros(n_pars, N); nmse_val = bic_val;
+    df_inner = zeros(n_pars, N);
 
     %-------------- Begin inner loop --------------%
-
-    % Divide train set into K equally sized folds 
-    indices_in = sort(crossvalind('Kfold', siz_train, V));
         
     % The inner loop 
-    % has V iterations 
-    parfor v = 1 : V
+    % has N iterations 
+    parfor n = 1 : N
     
         % Assign broadcast variables to loop variables for efficiency 
         % Large broadcast variables can cause significant communication 
@@ -195,8 +193,11 @@ for k = 1 : K
         % replace them for temporary variables, created inside the loop 
         EEG_par = EEG; BOLD_par = BOLD; lambda_par = lambda;
     
+        % Divide train set into V equally sized folds 
+        indices_in = crossvalind('Kfold', siz_train, V);
+    
         % Assign test set indices 
-        idx_val = (indices_in == v); 
+        idx_val = (indices_in == 1); 
         idx_val = find(idx_val);
         siz_val = length(idx_val);
         
@@ -240,11 +241,11 @@ for k = 1 : K
         % pairs in the val and learn set 
         y_hat_val = intercept + X_val*betas;      
         mse_val = sum((y_hat_val - y_val).^2)';     
-        nmse_val(:, v) = mse_val/sum((y_val - mean(y_val)).^2);     
-        bic_val(:, v) = log(siz_val).*df + ...
+        nmse_val(:, n) = mse_val/sum((y_val - mean(y_val)).^2);     
+        bic_val(:, n) = log(siz_val).*df + ...
             siz_val.*log(mse_val ./ siz_val);
         
-        df_inner(:, v) = df;
+        df_inner(:, n) = df;
         
     end
     

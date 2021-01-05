@@ -11,21 +11,24 @@ rand_pnt = floor(1 + rand(1)*(n_pnts - 1));
 
 for b = 1 : n_bands
     
-    conspec_sig_rand = squeeze(conspec_sig(rand_pnt, :, :, b)); 
+    conspec_topo_rand = squeeze(conspec_topo(rand_pnt, :, :, b)); 
     
     my_title = strcat('Connectome at a random', ...
         ' time-point, for the', id_bands(b), ' band');
     fig = figure('Name', my_title);
     fig.Position(3:4) = fig.Position(3:4)*5;
-    imagesc(conspec_sig_rand); colorbar;
-    xlabel('Channels','FontSize',20); 
-    ylabel('Channels','FontSize',20);
+    imagesc(conspec_topo_rand); colorbar; 
+    xlabel('Channels','FontSize',24); 
+    ylabel('Channels','FontSize',24);
     xticks(1:n_chans); yticks(1:n_chans);
     xticklabels(cellstr(id_chans));
     yticklabels(cellstr(id_chans));
-
+    set(gcf, 'PaperUnits', 'inches');
+    x_width = 12; y_width = 11;
+    set(gcf, 'PaperPosition', [0 0 x_width y_width]); 
+ 
     img_out = strcat(upper(con_metric), ...
-        '_connectome_',id_bands(b),'.png');
+        '_Connectome_',id_bands(b),'.png');
     saveas(gcf,fullfile(path_img_out(s), img_out));
 
 end
@@ -48,9 +51,12 @@ ylabel('Channels','FontSize',20);
 xticks(1:n_chans); yticks(1:n_chans);
 xticklabels(cellstr(id_chans));
 yticklabels(cellstr(id_chans));
-
+set(gcf, 'PaperUnits', 'inches');
+x_width = 12; y_width = 11;
+set(gcf, 'PaperPosition', [0 0 x_width y_width]); 
+    
 img_out = strcat(upper(con_metric), ...
-    '_connectome_avg.png');
+    '_Connectome_avg.png');
 saveas(gcf,fullfile(path_img_out(s), img_out));
 
 %---------------------------------------------------------    
@@ -60,6 +66,9 @@ saveas(gcf,fullfile(path_img_out(s), img_out));
 % Average topographies of the network measures
 % across time 
 
+topo_settings = {'electrodes', 'labels', ...
+    'whitebk', 'on', 'gridscale', 300};
+    
 for b = 1 : n_bands
     
     signal = squeeze(eeg_features_norm(:, :, b));
@@ -67,8 +76,6 @@ for b = 1 : n_bands
     
     max_signal_abs = max(max(signal), ...
     abs(min(signal)));
-    topo_settings = {'electrodes','labels', ...
-    'whitebk','on','gridscale',300};
     
     my_title = strcat('Topographic map of', ...
         'average (through time)', " ", upper(net_metric), ...
@@ -103,7 +110,9 @@ for b = 1 : n_bands
     plot(time, signal_delayed);
 
     title(my_title); 
-    xlabel('Time(s)'); ylabel(upper(full_metric));
+    xlabel('Time(s)'); 
+    ylabel(upper(strcat(con_metric, ...
+        '{_', net_metric, '}')));
     legend(strcat(id_bands(b),' feature'), ...
         strcat(id_bands(b),' feature,', ...
         plotting_shift,', delay'," " , ...

@@ -12,14 +12,14 @@ for m = 1 : length(metrics)
    % current metric 
    get_metric_pars;
    
-    % Continue if metric is not yet supported for model fitting 
-    if strcmp(reg_model,'l21_1') && n_bands == 1
-        disp(char(strcat('Model wont be fitted for metric', ...
-            {' '}, metric,' because this metric is not', ...
-            ' supported for regression method', {' '}, ...
-            reg_model, '...')));
-        continue
-    end
+%     % Continue if metric is not yet supported for model fitting 
+%     if strcmp(reg_model,'l21_1') && n_bands == 1
+%         disp(char(strcat('Model wont be fitted for metric', ...
+%             {' '}, metric,' because this metric is not', ...
+%             ' supported for regression method', {' '}, ...
+%             reg_model, '...')));
+%         continue
+%     end
     
     % Load optimal CV parameters K and V for current metric 
     cv_pars_in = strcat(reg_model,'_',cv_method,'_',metric,'.mat');
@@ -86,7 +86,7 @@ for m = 1 : length(metrics)
                 [model,optimal] = kfold_cv_nondep_par_v3...
                     (eeg,bold,'k',k,'regress',reg_model, ...
                     'autocorr',order,'sizx', ...
-                    [length(bold) prod(dim)]);
+                    [length(bold) prod(dim(1:2)) dim(3)]);
 
             case 'blocked'
 
@@ -95,7 +95,7 @@ for m = 1 : length(metrics)
                 [model,optimal] =  kfold_cv_blocked_par_v3(eeg,bold,...
                     'k',k,'val2learn',v,'regress',reg_model,...
                     'autocorr',order,'sizx', ...
-                    [length(bold) prod(dim)]);
+                    [length(bold) prod(dim(1:2)) dim(3)]);
 
         end 
 

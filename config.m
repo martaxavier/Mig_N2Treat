@@ -11,8 +11,7 @@
 % Subjects 
 subjects = ["sub-patient002", "sub-patient003", ...
        "sub-patient005", "sub-patient006", "sub-patient007", ...
-       "sub-patient008", "sub-pilot011", "sub-pilot015", ...
-       "sub-pilot018"];
+       "sub-patient008"];
 
 % Task          -
 % 'task-rest','task-calib'
@@ -36,12 +35,11 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-%metrics = ["lc4", "lc6", "rmsf", "tp"];
-metrics = "icoh_wnd";
+metrics = ["lc4", "tp", "rmsf", "icoh_wnd"];
 
 % Regression models 
 % 'l21_1','elasticnet'
-reg_models = "l21_1";   
+reg_models = ["elasticnet", "l21_1"];   
 
 % Cross-validation method
 % 'nondep','regular','blocked'
@@ -76,7 +74,7 @@ fs_analysis = 4;            % Analysis intermediate sampling frequency
 % Frequency range (Hz)
 f_min = 1;
 f_max = 30;
-n_freq = 30;
+n_freq = 100;
 
 % EEG filters (Hz)
 highpass_filter = 1;          
@@ -93,7 +91,7 @@ n_wins_welch = 8;
 % Number of surrogates for 
 % statistical filtering of
 % the connectivity estimates 
-n_surrogates = 2;
+n_surrogates = 4;
 
 % Window for HRF convolution 
 hrf_kernel_seconds = 32;       
@@ -106,7 +104,7 @@ connectivity_metrics = ["icoh_wnd", "icoh_cc"];
 % auto-regressive model used
 % to model the EEG and BOLD
 % time-series 
-acf_conf = 0.99;
+acf_conf = 0.95;
 
 % Dimensions of BOLD 
 % images 

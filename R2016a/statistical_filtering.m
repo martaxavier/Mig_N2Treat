@@ -2,7 +2,7 @@ function [conspec_sig, decision, p_thresh_corrected] = ...
     statistical_filtering(data, f_range, n_freq, n_wins_welch, ...
     win_seconds, fs_data, fs_cspec, metric, conspec, surrogate_method, ...
     n_surrogates)
-   
+
 % Define some parameters 
 % for the surrogate analysis 
 win_cut_seconds = 10;
@@ -77,8 +77,10 @@ parfor s = 1 : n_surrogates
     % Average connectivity for each frequency band 
     conspec_surr_par = average_frequency...
         (conspec_surr_par, f_vector, bands_par);
-        
-    conspec_surr(:,:,:,:,s) = conspec_surr_par;
+
+    % Turn lower triangular into symmetric matrix 
+    conspec_surr_par = tril2symmetric(conspec_surr_par);       
+    conspec_surr(:, :, :, :, s) = conspec_surr_par;
     
 end
         
@@ -99,4 +101,5 @@ p_values = sum(is_greater, 5) ./ n_surrogates;
 
 % Set to zero connectivity values that 
 % didn't survive the significance test
-conspec_sig = conspec(decision); 
+conspec_sig = zeros(size(conspec));
+conspec_sig(decision) = conspec(decision); 
