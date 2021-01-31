@@ -9,6 +9,8 @@ Cxy_tril = Cxy;
 Cxy_T = permute(Cxy,[1, 3, 2, 4]);
 Cxy = Cxy_T + Cxy;
 
+[iY,iX] = meshgrid(1 : n_X, 1 : n_X); Cxy_triu(logical(iX <= iY), :) = Cxy;
+
 % Keep the diagonal as it was in
 % the original Cxy matrix 
 Cxy = reshape(permute(Cxy, [3, 2, 1, 4]), ...

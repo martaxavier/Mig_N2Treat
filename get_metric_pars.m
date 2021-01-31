@@ -318,14 +318,14 @@ switch metric
         n_bands =       size(bands,2);
         dim =           [n_chans, n_delays, n_bands];  
         
-    case 'icoh_cc'
+    case 'icoh_wne'
         
         % ================================================
-        % ICOH CC (CC of Imaginary Part of Coherency)           
+        % ICOH WNE (WNE of Imaginary Part of Coherency)           
         % ================================================
 
-        id =            'icoh_cc';
-        eeg_metric =    'icoh_cc';
+        id =            'icoh_wne';
+        eeg_metric =    'icoh_wne';
         eeg_shift =     'conv';
         bold_shift =    '';
         chans =         1:31;
@@ -337,6 +337,69 @@ switch metric
         n_chans =       length(chans);
         n_delays =      length(delays);
         n_bands =       size(bands,2);
-        dim =           [n_chans, n_delays, n_bands];  
+        dim =           [n_chans, n_delays, n_bands];
+ 
+    case 'icoh_bc'
+        
+        % ================================================
+        % ICOH BC (BC of Imaginary Part of Coherency)           
+        % ================================================
+
+        id =            'icoh_bc';
+        eeg_metric =    'icoh_bc';
+        eeg_shift =     'conv';
+        bold_shift =    '';
+        chans =         1:31;
+        bands =         [1 4; 4 8; 8 12; 12 30]';
+        delays =        [2 4 5 6 8 10];
+        id_chans =      labels;
+        id_delays =     ["2", "4", "5", "6", "8", "10"];
+        id_bands =      ["Delta", "Theta", "Alpha", "Beta"];
+        n_chans =       length(chans);
+        n_delays =      length(delays);
+        n_bands =       size(bands,2);
+        dim =           [n_chans, n_delays, n_bands];
+        
+    case 'wpli'
+        
+        % ================================================
+        % WPLI (Weighted Phase Lag Index)           
+        % ================================================
+
+        id =            'wpli';
+        eeg_metric =    'wpli';
+        eeg_shift =     'conv';
+        bold_shift =    '';
+        chans =         1:31;
+        bands =         [1 4; 4 8; 8 12; 12 30]';
+        delays =        [2 4 5 6 8 10];
+        id_chans =      labels;
+        id_delays =     ["2", "4", "5", "6", "8", "10"];
+        id_bands =      ["Delta", "Theta", "Alpha", "Beta"];
+        n_chans =       length(chans);
+        n_delays =      length(delays);
+        n_bands =       size(bands,2);
+        dim =           [n_chans, n_chans, n_delays, n_bands];        
+
+    case 'wpli_wnd'
+        
+        % ================================================
+        % WPLI WND (WND of Weighted Phase Lag Index)           
+        % ================================================
+
+        id =            'wpli_wnd';
+        eeg_metric =    'wpli_wnd';
+        eeg_shift =     'conv';
+        bold_shift =    '';
+        chans =         1:31;
+        bands =         [1 4; 4 8; 8 12; 12 30]';
+        delays =        [2 4 5 6 8 10];
+        id_chans =      labels;
+        id_delays =     ["2", "4", "5", "6", "8", "10"];
+        id_bands =      ["Delta", "Theta", "Alpha", "Beta"];
+        n_chans =       length(chans);
+        n_delays =      length(delays);
+        n_bands =       size(bands,2);
+        dim =           [n_chans, n_delays, n_bands];          
         
 end

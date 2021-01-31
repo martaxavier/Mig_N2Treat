@@ -20,6 +20,7 @@ function E = efficiency_wei(W, local)
 %                               efficiency.
 %               	local=2  computes the modified version of the local
 %                               efficiency (recommended, see below). 
+%                   local=3  computes the nodal efficiency (added by me)
 %
 %   Output:     Eglob,
 %                   global efficiency (scalar)
@@ -98,6 +99,9 @@ if exist('local','var') && local                            % local efficiency
                     E(u) = numer / denom;                 	% local efficiency
                 end
             end
+        case 3
+            di = distance_inv_wei(L);
+            E = sum(di,1) ./ (n - 1);                       % nodal efficiency (at each node)
     end
 else
     di = distance_inv_wei(L);
@@ -126,7 +130,7 @@ for u=1:n_
         minD=min(D(u,S));
         if isempty(minD)||isinf(minD)                       % isempty: all nodes reached;
             break,                                          % isinf: some nodes cannot be reached
-        end;
+        end
         
         V=find(D(u,:)==minD);
     end

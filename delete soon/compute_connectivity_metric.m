@@ -49,8 +49,8 @@ end
                     % Imaginary Part of Coherency - ICxy = abs(im(Cxy))
                     Cxy_chan =  abs(imag(Cxy_chan));
 
-                % == Phase Locking Value 
-                case 'plv'
+                % == weighted Phase Lag Index  
+                case 'wpli'
 
 
             end

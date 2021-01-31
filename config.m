@@ -6,12 +6,15 @@
 
 % If a variable here defined is a list, then all the scripts will 
 % loop through that list. If a variable here defined is a string, 
-% then this is a fixed parameter for the entire pipeline. 
+% then this is a fixed parameter for the entire pipeline.
+% Each combination of all the variables in this section will originate
+% results that are to be saved in a specific directory 
 
 % Subjects 
-subjects = ["sub-patient002", "sub-patient003", ...
-       "sub-patient005", "sub-patient006", "sub-patient007", ...
-       "sub-patient008"];
+subjects = ["sub-patient012"];
+%subjects = ["sub-patient002", "sub-patient003", ...
+%"sub-patient005", "sub-patient006", "sub-patient007", ...
+%"sub-patient008"];
 
 % Task          -
 % 'task-rest','task-calib'
@@ -25,9 +28,19 @@ sub_task = '';
 % 'ic_dmn','avg_dmn'
 rsn_method = "ic_dmn";              
 
-% EEG TF-decomposition method
+% EEG TF-decomposition method 
 % 'wavelet','welch'
-tf_method = "wavelet";               
+tf_method = "wavelet";    
+
+% Method for statistical filtering 
+% of the connectivity matrices 
+% 'analytical', 'surrogate', 'none' 
+stat_filt_method = 'analytical';
+
+% Method for generation of the 
+% connectivity surrogates 
+% 'block_shift', 'phase_shuffle', ''
+surr_method = ''; 
 
 % BOLD deconvolution method
 % 'voxel_wise','time_series'
@@ -35,7 +48,7 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-metrics = ["lc4", "tp", "rmsf", "icoh_wnd"];
+metrics = ["lc4" "rmsf" "tp" "icoh_wnd" "icoh_bc"];
 
 % Regression models 
 % 'l21_1','elasticnet'
@@ -44,11 +57,6 @@ reg_models = ["elasticnet", "l21_1"];
 % Cross-validation method
 % 'nondep','regular','blocked'
 cv_method = "nondep";     
-
-% Surrogate method for statistical
-% filtering of the connectivity
-% 'block_shuffle', 'phase_shuffle'
-surrogate_method = 'block_shuffle';
 
 % Threshold of the DMN mask
 dmn_thr = 1;
@@ -74,14 +82,14 @@ fs_analysis = 4;            % Analysis intermediate sampling frequency
 % Frequency range (Hz)
 f_min = 1;
 f_max = 30;
-n_freq = 100;
+n_freq = 30;
 
 % EEG filters (Hz)
 highpass_filter = 1;          
 lowpass_filter = 40;         
 
 % Windows for TF decomposition 
-tf_sliding_window_seconds = 4;  
+tf_sliding_win_seconds = 4;  
 tf_wavelet_kernel_seconds = 2; 
 
 % Number of windows for 
@@ -91,14 +99,15 @@ n_wins_welch = 8;
 % Number of surrogates for 
 % statistical filtering of
 % the connectivity estimates 
-n_surrogates = 4;
+n_surrs = 50;
 
 % Window for HRF convolution 
 hrf_kernel_seconds = 32;       
 
 % Supported power and connectivity metrics 
 power_metrics = ["lc4","lc6","rmsf","tp"];
-connectivity_metrics = ["icoh_wnd", "icoh_cc"];
+connectivity_metrics = ["icoh_wnd", "wpli_wnd", ...
+    "icoh_wne", "wpli_wne", "icoh_bc", "wpli_bc"];
 
 % Confidence level for the
 % auto-regressive model used
@@ -225,10 +234,11 @@ path.main = 'C:\Users\marta\Documents\LASEEB\MigN2Treaty';
 
 % Define path that defines the dataset
 % (Common to almost every path) 
-data_path = {subjects,task,sub_task};
+data_path = {subjects, task, sub_task};
 
 % Define path that defines the set of methods specified 
-method_path = {rsn_method,tf_method,reg_models,cv_method};
+%stat_method = fullfile(stat_filt_method, surr_method);
+method_path = {rsn_method, tf_method, reg_models, cv_method};
 
 % EEG/BOLD Raw data
 path.eeg_raw =              strcat('DATA\',fullfile(data_path{:}),'\eeg');
@@ -248,7 +258,7 @@ path.bold_img_processed =   strcat('DATA\',fullfile(data_path{:}),'\func');
 
 % EEG/BOLD Derivatives 
 path.eeg_feature =          strcat('DERIVATIVES\',fullfile(data_path{:}), ... 
-                            '\eeg\',method_path{2});
+                            '\eeg\',fullfile(method_path{2}));
 path.bold_deconv =          strcat('DERIVATIVES\',fullfile(data_path{:}), ...
                             '\func\',method_path{1});
 path.bold_img_deconv =      strcat('DERIVATIVES\',fullfile(data_path{:}), ...
@@ -271,7 +281,7 @@ path.correlation_group =   strcat('RESULTS\GROUP\', ...
 pre =                       repmat(strcat('RESULTS\', ...
                             fullfile(data_path{:})', ...
                             '\models\'),1,length(reg_models));
-suf =                       repmat(fullfile(method_path{1:3}), ...
+suf =                       repmat(fullfile(method_path{1:4}), ...
                             length(subjects),1);
 path.model =                strcat(pre,suf);
 path.model_group =          strcat('RESULTS\GROUP\', ...

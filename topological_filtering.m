@@ -3,6 +3,7 @@ function [conspec_topo, decision] = topological_filtering(conspec_sig)
 [n_pnts, ~, ~, n_bands] = size(conspec_sig);
 conspec_topo = zeros(size(conspec_sig));
 
+
 parfor t = 1 : n_pnts
     
     conspec_sig_par = conspec_sig; 

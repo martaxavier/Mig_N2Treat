@@ -1,10 +1,10 @@
-function [features_delayed] = convolve_features(features,fs,delay_range, ...
-    kern_seconds)
+function [features_delayed] = convolve_features_fast(features, fs, ...
+    delay_range, kern_seconds)
 % 
-%   function [feature_delay] = convolve_features(feature,fs,delay_range,
-%   kern_seconds) convolves each feature in variable 'feature' with a set  
-%   of HRF functions, characterized by a set of overshoot delays specified
-%   in 'delay_range'
+%   function [feature_delay] = convolve_features_fast(feature, fs, 
+%   delay_range, kern_seconds) convolves each feature in variable 
+%   'feature' with a set of HRF functions, characterized by a set of
+%   overshoot delays specified in 'delay_range'. Fast version. 
 %
 %   INPUTS:
 %
@@ -26,34 +26,23 @@ function [features_delayed] = convolve_features(features,fs,delay_range, ...
 
 % Read size of input data
 siz = size(features);
-n_pnts = siz(1);
-n_features = prod(siz(2:end));
+n_pnts = size(features, 1);
+n_features = numel(features(1, :, :));
 n_delays = length(delay_range);
+
+% Compute the length of the convolution 
+n_pnts_kern = kern_seconds*fs + 1;
+n_conv = n_pnts + n_pnts_kern - 1;
 
 % ------------------------------------------------------------
 % Preallocate matrices 
 % ------------------------------------------------------------     
 
-% Allocate new features matrix, by adding the delays dimension 
-features_delayed = zeros(n_pnts, n_features, n_delays);
-
 % Reshape the features matrix to have only 2 dimensions 
 features = reshape(features, [n_pnts n_features]);
 
 % Allocate matrix of hrfs 
-kern_samples = kern_seconds*fs + 1;
-hrf = zeros(kern_samples, length(delay_range));
-
-% Assign hrf basis function struct, in 
-% the format required by spm_Volterra 
-xBF.dt = 1/fs;
-xBF.name = 'hrf';
-xBF.length = kern_seconds;
-xBF.order = 1;
-
-% Create eeg predictor struct, in 
-% the format required by spm_Volterra
-P.name = {'feature'};
+hrf = zeros(n_pnts_kern, n_delays);
 
 % ------------------------------------------------------------
 % Convolve matrices with hrf kernel
@@ -82,36 +71,33 @@ for overshoot_delay = delay_range
 
     % Build hrf function for current overshoot delay 
     % each column corresponds to hrf with a given overshoot delay
-    hrf(:,n) = spm_hrf(rt, p);
+    hrf(:, n) = spm_hrf(rt, p);
 
     % Normalize overshoot 
-    hrf(:,n) = hrf(:,n)./max(hrf(:,n));
-    
-    xBF.bf = hrf(:,n);
-    
-    % Perform convolution between each 
-    % feature and each HRF delay 
-    for f = 1 : n_features 
+    hrf(:, n) = hrf(:, n) ./ max(hrf(:, n));
 
-            
-             % Convolution in the time-domain, with the same size as
-             % the original signal (first and last samples of
-             % convolution are cut out to match the intended size)
-             P.u = features(:, f); 
-             features_delayed(:, f, n) = spm_Volterra(P, xBF.bf);
-%              aux = conv(P.u, xBF.bf);
-%              d = 1:n_pnts;
-%              features_delayed(:, f, n) = aux(d);
-%              features_delayed(:, f, n) = aux(floor(kern_samples/2) : end - floor(kern_samples/2) - 1); 
-
-             clear P.u;      
-        
-    end
-    
     n = n + 1;
-    clear xBF.bf
     
 end
+
+% Compute FFT along each column 
+hrfF = fft(hrf, n_conv);
+featuresF = fft(features, n_conv);
+
+hrfF = repmat(permute(hrfF, [1 3 2]), 1, n_features, 1);
+featuresF = repmat(featuresF, 1, 1, n_delays);
+
+% Perform time-domain convolution by frequency domain multiplication 
+features_delayed = ifft(featuresF .* hrfF, n_conv) ./ n_conv;
+
+% Truncate the result of convolution to obtain a time-series
+% that is the  same length as the original signal
+%  features_delayed = features_delayed(floor(n_pnts_kern/2) ...
+%      : end - floor(n_pnts_kern/2) - 1, :);
+ 
+% NOTE: should we use the central part of the convolution (matlab default)
+%       or should we use the first part of the convolution (spm_volterra)
+features_delayed = features_delayed(1 : n_pnts, :);
 
 features_delayed = reshape(features_delayed, ...
     [n_pnts siz(2:end) n_delays]);

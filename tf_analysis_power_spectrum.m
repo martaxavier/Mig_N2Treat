@@ -1,6 +1,6 @@
 function [power,f_vector] = tf_analysis_power_spectrum(data, ...
     f_range, n_freq, tf_method, wav_seconds, win_seconds, ...
-    fs_data, fs_power)
+    n_wins, fs_data, fs_power)
 
 %   Performs time-frequency analysis of the signals  in 'data'
 %   Extracts the power-spectrum of each signal in 'data', using 
@@ -29,63 +29,44 @@ if ~ismatrix(data) || ~isreal(data)
 end
 
 % Ensure that the first dimension 
-% spans channels 
-if size(data,1) > size(data,2)
+% spans time-points 
+if size(data,1) < size(data,2)
     data = squeeze(data');
 end
-    
-% Read size of input data 
-n_chans = size(data,1);
-n_pnts = size(data,2);
+
+% Number of time-points
+n_pnts = size(data, 1);
 
 % Obtain number of time points of the output 
 n_pnts_power = round((n_pnts - 1)*(fs_power/fs_data) + 1);
 
-% Pre-allocate the output matrix 
 switch tf_method
+    
+    % === Morlet Wavelet ===
     case 'wavelet'
-        power = zeros(n_freq,n_pnts,n_chans);
-    case 'welch'
-        power = zeros(n_freq,n_pnts_power,n_chans);
-end
-
-% Go through channels 
-for channel = 1 : n_chans
-    
-    switch tf_method
         
-        % === Morlet Wavelet === 
-        case 'wavelet'
-            
-            % Extract the tf power spectrum of the current
-            % channel, using Morlet wavelet decomposition 
-            [~ , f_vector, ~, channel_pow] = ...
-                tf_power_spectrum_wavelet(data(channel,:), ...
-                f_range, n_freq, wav_seconds, ...
-                fs_data, 1);
-            
-        % === Welch ===   
-        case 'welch'
-            
-            % Extract the tf power spectrum of the current 
-            % channel, using the Welch method 
-            % (the cross-spectrum of one signal with itself
-            % is its power spectral density)
-            [f_vector, channel_pow] =  ...
-                tf_cross_spectrum_welch(data(channel,:), ...
-                data(channel,:),f_range, n_freq, ...
-                win_seconds, fs_data, fs_power, 0);
-            
-            % Padd the tf power-spectrum to match the begining and 
-            % end of the input data 
-            padd_size = (n_pnts_power - size(channel_pow,2)) / 2;
-            channel_pow = padarray(channel_pow, [0 padd_size], ...
-                'replicate','both');            
-            
-    end
-    
-    power(:,:,channel) = channel_pow;
-    
+        % Extract the tf power spectrum of the current
+        % channel, using Morlet wavelet decomposition 
+        [~ , f_vector, ~, power] = tf_power_spectrum_wavelet(data, ...
+            f_range, n_freq, wav_seconds, fs_data, 1);
+        
+    % === Welch's Method ===       
+    case 'welch'
+
+        % Extract the tf power spectrum of the current 
+        % channel, using the Welch method 
+        % (the cross-spectrum of one signal with itself
+        % is its power spectral density)
+        [f_vector, power] =  ...
+            tf_cross_spectrum_welch(data, data, f_range, n_freq, ...
+            n_wins, win_seconds, fs_data, fs_power, 0);
+
+        % Padd the tf power-spectrum to match the begining and 
+        % end of the input data 
+        padd_size = (n_pnts_power - size(power, 1)) / 2;
+        power = padarray(power, [padd_size 0 0], ...
+            'replicate','both');  
+
 end
 
 end

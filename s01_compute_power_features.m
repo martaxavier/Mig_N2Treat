@@ -83,17 +83,19 @@ for m = 1 : length(metrics)
         % TF decomposition to extract power 
         %---------------------------------------------------------
         
+        disp('... performing time-frequency decomposition ...');
+                    
         [power, f_vector] = tf_analysis_power_spectrum...
             (data,[f_min f_max], n_freq, tf_method, ...
-            tf_wavelet_kernel_seconds, tf_sliding_window_seconds, ...
-            fs_eeg, fs); 
+            tf_wavelet_kernel_seconds, tf_sliding_win_seconds, ...
+            n_wins_welch, fs_eeg, fs);   
  
-        n_pnts = size(power,2);
+        n_pnts = size(power, 1);
 
         %---------------------------------------------------------    
         % Compute power metric
         %---------------------------------------------------------
-
+        
         get_metric_pars
 
         % Lin comb of power 
@@ -102,20 +104,20 @@ for m = 1 : length(metrics)
 
             % Average power across frequency bands
             eeg_features = average_frequency(power, ...
-                f_vector, bands);
+                f_vector, bands, 3);
 
         % Total power 
-        elseif contains(metric,'tp')
+        elseif contains(metric, 'tp')
 
             % Compute total power 
             eeg_features = squeeze(sum(power,1));
 
         % Root mean square frequency
-        elseif contains(metric,'rmsf')
+        elseif contains(metric, 'rmsf')
 
             % Compute root mean square frequency
             eeg_features = squeeze(sqrt(sum(repmat...
-                ((f_vector'.^2),1,n_pnts).*power,1)));
+                ((f_vector' .^ 2), 1, n_pnts) .* power, 1)));
             
         end
 
@@ -132,9 +134,9 @@ for m = 1 : length(metrics)
             numel(eeg_features(1, :, :, :))]);
         
         % Define the outlier threshold for each feature 
-        out_thresh = repmat(10*std(eeg_features),[n_pnts 1]);
-        eeg_features(eeg_features>out_thresh) = ...
-            out_thresh(eeg_features>out_thresh);
+        out_thresh = repmat(10*std(eeg_features), [n_pnts 1]);
+        eeg_features(eeg_features > out_thresh) = ...
+            out_thresh(eeg_features > out_thresh);
         
         % Reshape feature matrix into its original dimension 
         eeg_features = reshape(eeg_features, siz);
@@ -177,6 +179,8 @@ for m = 1 : length(metrics)
         % Convolution with HRF or delay
         %---------------------------------------------------------
 
+        disp('... convolving with a range of HRFs ...');
+        
         switch eeg_shift 
 
             case 'conv'
@@ -185,7 +189,7 @@ for m = 1 : length(metrics)
                 plotting_shift = 'convolved';
                 
                 % Convolve features with the specified family of HRFs 
-                eeg_features_delayed = convolve_features(eeg_features, ...
+                eeg_features_delayed = convolve_features_fast(eeg_features, ...
                     fs_current, delays, hrf_kernel_seconds);
 
                 % Permute resulting matrix to have bands at the end
@@ -251,6 +255,8 @@ for m = 1 : length(metrics)
         % Downsample to intermediate frequency
         %---------------------------------------------------------
 
+        disp('... downsampling to intermeadiate frequency ...');
+        
         % Keep a version of the features in  
         % the original EEG sampling frequency 
         eeg_features_eeg_fs = eeg_features;

@@ -7,7 +7,7 @@ function [f_vector, Cxy] = tf_cross_spectrum_welch(X, Y, ...
 %
 %   INPUTS:
 %
-%           X, Y        - Input signals 
+%           X, Y        - Input signals (#time-points x #signals)
 %           f_range     - Frequency range for the TF-decomposition 
 %           n_freq      - Number of frequency bins for the TF-decomposition
 %           n_wins      - Number of windows for Welch TF-decomposition 
@@ -62,7 +62,7 @@ end
 
 % Number of time-points 
 % of the input data 
-n_pnts_X = length(X);
+n_pnts_X = size(X, 1);
 
 % Discard the first and last time-points 
 start_X = 1 + ((win_samples - 1) / 2);
@@ -81,7 +81,7 @@ center_Cxy = 1;
 
 % Pre-allocate matrix containing the power
 % spectral densitity througout time 
-Cxy = zeros(n_freq,n_pnts_Cxy);
+Cxy = zeros(n_pnts_Cxy, size(X, 2), n_freq);
 
 % Go through each window 
 for center_X = win_center_X
@@ -89,15 +89,19 @@ for center_X = win_center_X
     % Define the current window, centered on 'center_Xs'
     win = center_X - (win_samples - 1) / 2 ...
         : center_X + (win_samples - 1) / 2;
-    X_win = X(win);
-    Y_win = Y(win);
+    X_win = X(win, :);
+    Y_win = Y(win, :);
     
     % Obtain the power spectral density for the current window 
     % (the cross-power spectral density - cpsd - of one signal  
     % with itself is its power spectral density)
     % Tapering - Hamming window of 250 ms; Window overlap - 50% 
-    Cxy(:,center_Cxy) = cpsd(X_win, Y_win, ...
+    % cpsd operates column-wise 
+    Cxy_win = cpsd(X_win, Y_win, ...
         hamming(n_fft), [], f_vector, fs_X);
+    
+    % Frequency bins in the last dimension 
+    Cxy(center_Cxy, :, :) = permute(Cxy_win, [2 3 1]);
     
     % Update the time-point for which the 
     % power spectral density is obtained 
@@ -105,26 +109,26 @@ for center_X = win_center_X
 
 end
 
-% Plot power spectrum
-if plot_TF
-    
-    % Colorscale
-    Dtf_f = log(abs(Cxy) + .001); 
-    
-    figure('Name', 'TF')
-
-    imagesc((1:size(Cxy,2)) ./ fs_Cxy, ...
-        1:length(f_vector), squeeze(Dtf_f));
-    
-%     Fplot = (log([1 2 5 8 13 20 30 45 50 70 90]) ...
-%         - log(f_vector(1))) ./ log(1 + alpha) + 2;
-%     hold on; plot([1 n_pnts_Cxy],[Fplot', Fplot'],'k');
-%     hold off
-    
-    set(gca,'YTick',Fplot);
-    set(gca,'YTickLabel', [1 2 5 8 13 20 30 45 50 70 90],'FontSize',12)
-    ylabel('Frequency (Hz)','FontSize', 26);
-    xlabel('Time (s)','FontSize',26);
-    colorbar;
+% % Plot power spectrum
+% if plot_TF
+%     
+%     % Colorscale
+%     Dtf_f = log(abs(Cxy) + .001); 
+%     
+%     figure('Name', 'TF')
+% 
+%     imagesc((1:size(Cxy,2)) ./ fs_Cxy, ...
+%         1:length(f_vector), squeeze(Dtf_f));
+%     
+% %     Fplot = (log([1 2 5 8 13 20 30 45 50 70 90]) ...
+% %         - log(f_vector(1))) ./ log(1 + alpha) + 2;
+% %     hold on; plot([1 n_pnts_Cxy],[Fplot', Fplot'],'k');
+% %     hold off
+%     
+%     set(gca,'YTick',Fplot);
+%     set(gca,'YTickLabel', [1 2 5 8 13 20 30 45 50 70 90],'FontSize',12)
+%     ylabel('Frequency (Hz)','FontSize', 26);
+%     xlabel('Time (s)','FontSize',26);
+%     colorbar;
 
 end
