@@ -14,7 +14,7 @@ flag.process_bold_imgs = 0;
 flag.extract_eeg_markers = 0;
 
 % LEVEL 1 
-flag.compute_features = 1;
+flag.compute_features = 0;
 flag.deconvolve_bold = 0;
 
 % LEVEL 2
@@ -30,7 +30,7 @@ flag.optimize_cv_pars = 0;
 
 % LEVEL 5
 flag.fit_models = 0;
-flag.report_models = 0;
+flag.report_models = 1;
 
 % LEVEL 6
 flag.group_model_stats = 0;

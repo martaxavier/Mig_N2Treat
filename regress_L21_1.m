@@ -96,11 +96,6 @@ if size(Y,1) == 1
     Y = Y';
 end
 
-% siz_X a vector, same length as the columns of X
-%if ~isvector(siz_X) || ~isreal(siz_X) || size(siz_X) ~= 3
-%    error('siz_XnotaConformingVector'));
-%end
-
 % This screen (okrows) selects all the predictions and response we can use
 okrows = all(isfinite(X),2) & all(isfinite(Y),2);
 

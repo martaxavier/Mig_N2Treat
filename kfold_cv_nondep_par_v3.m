@@ -183,9 +183,10 @@ for k = 1 : K
 
     %-------------- Begin inner loop --------------%
 
+    %!!!!!!!!!THIS IS A PARFOR
     % The inner loop 
     % has N iterations 
-    parfor n = 1 : N
+    for n = 1 : N
     
         % Assign broadcast variables to loop variables for efficiency 
         % Large broadcast variables can cause significant communication 

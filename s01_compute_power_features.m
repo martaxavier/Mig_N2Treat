@@ -56,8 +56,9 @@ for m = 1 : length(metrics)
         load(fullfile(path_data_in(s),data_in));
         
         % Save chanlocs structure if non existent 
-        if ~exist(fullfile('PARS','chanlocs.mat'),'file')
-            save(fullfile('PARS','chanlocs.mat'),'chanlocs');
+        if ~exist(fullfile(dataset,'PARS','chanlocs.mat'),'file')
+            chanlocs = EEG.chanlocs;
+            save(fullfile(dataset,'PARS','chanlocs.mat'),'chanlocs');
         end
 
         first_last = dlmread(fullfile(path_markers_in(s),markers_in));
@@ -110,14 +111,15 @@ for m = 1 : length(metrics)
         elseif contains(metric, 'tp')
 
             % Compute total power 
-            eeg_features = squeeze(sum(power,1));
+            eeg_features = squeeze(sum(power, 3));
 
         % Root mean square frequency
         elseif contains(metric, 'rmsf')
 
             % Compute root mean square frequency
-            eeg_features = squeeze(sqrt(sum(repmat...
-                ((f_vector' .^ 2), 1, n_pnts) .* power, 1)));
+            eeg_features = squeeze(sqrt(sum(permute(repmat...
+                ((f_vector' .^ 2), 1, n_pnts, n_chans), ...
+                [2 3 1]) .* power, 3)));
             
         end
 
@@ -129,7 +131,7 @@ for m = 1 : length(metrics)
         % than the features' standard deviation 
         
         % Reshape the feature matrix to have 2 dimensions
-        siz = size(eeg_features);
+         siz = size(eeg_features);
         eeg_features = reshape(eeg_features,[n_pnts, ...
             numel(eeg_features(1, :, :, :))]);
         
@@ -142,7 +144,7 @@ for m = 1 : length(metrics)
         eeg_features = reshape(eeg_features, siz);
 
         %---------------------------------------------------------    
-        % Mirror padd the signal before convolution  
+        % Assign current first and last indices 
         %---------------------------------------------------------
 
         % Assign current first and last indices according
@@ -161,19 +163,7 @@ for m = 1 : length(metrics)
             
         end
 
-        % Mirror padd the feature at a length equal to the 
-        % HRF kernal size + 1 (seconds)
-        eeg_features = eeg_features(first_current:last_current, :, :);
-
-        % Padd feature in the pre-direction 
-        padsize = max(first_current-1, hrf_kernel_seconds*fs_current);
-        eeg_features = padarray(eeg_features, padsize, ...
-            'symmetric', 'pre');
-
-        % Padd feature in the post-direction
-        padsize = max(n_pnts-last_current, hrf_kernel_seconds*fs_current);
-        eeg_features = padarray(eeg_features, padsize, ...
-            'symmetric', 'post');
+        %eeg_features = eeg_features(first_current:last_current, :, :);
 
         %---------------------------------------------------------    
         % Convolution with HRF or delay
@@ -217,7 +207,7 @@ for m = 1 : length(metrics)
                 % Prune the features to match the BOLD acquisition
                 % times
                 eeg_features_delayed = eeg_features_delayed...
-                    (first_current:last_current, :, :, :, :);
+                   (first_current:last_current, :, :, :, :);
 
         end
         
@@ -307,6 +297,8 @@ for m = 1 : length(metrics)
         % Normalize features (0 mean, 1 std)
         %---------------------------------------------------------
 
+        disp('... normalizing features ...');
+        
         % Normalize every feature so as to have
         % zero mean and standard deviation one
         eeg_features_norm = zscore(eeg_features);
@@ -328,6 +320,8 @@ for m = 1 : length(metrics)
         
         if ~isempty(eeg_shift) && flag.report ~= 0
             
+            disp('... generating and saving plots of features ...');
+                    
             for c = 1 : n_chans
 
                 for b = 1 : n_bands

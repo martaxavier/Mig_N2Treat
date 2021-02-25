@@ -7,15 +7,18 @@ set(0,'DefaultFigureVisible','on');
 
 fs=(1/1.26);
 hpf=0.01;
-subjs = "sub-patient005";
+ subjs = ["sub-32" "sub-35" "sub-36" "sub-37" "sub-38", ...
+     "sub-39" "sub-40" "sub-42" "sub-43" "sub-44" "sub-45", ...
+     "sub-46" "sub-47" "sub-48" "sub-49" "sub-50"]; 
 task = 'task-rest';
+dataset = 'NODDI';
 
 for s = 1 : length(subjs) 
     
     % Specify input and output paths and data
     data_in = 'prefiltered_func_data_mcf.txt';
     data_out = 'prefiltered_func_data_mcf_tempfilt.txt';
-    path_data_in = strcat('DATA/',subjs(s),'/',task,'/func/');
+    path_data_in = strcat(dataset,'/DATA/',subjs(s),'/',task,'/func/');
     path_data_out = path_data_in;
     path_img_out = strcat(path_data_in,'tempfilt');   
     if ~exist(path_img_out, 'dir'); mkdir(path_img_out); end

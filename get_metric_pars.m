@@ -6,7 +6,7 @@
 % Load chanlocs structure 
 %-------------------------------------------------------------
 
-load(fullfile('PARS','chanlocs.mat'));
+load(fullfile('NODDI','PARS','chanlocs.mat'));
 
 labels = struct2cell(chanlocs);
 labels = labels(1,:,:); 
@@ -28,7 +28,7 @@ switch metric
         eeg_metric =    'lc4';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -49,7 +49,7 @@ switch metric
         eeg_metric =    'lc4';
         eeg_shift =     'delay';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -70,7 +70,7 @@ switch metric
         eeg_metric =    'lc4';
         eeg_shift =     '';
         bold_shift =    'deconv';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [];
         id_chans =      labels;
@@ -91,7 +91,7 @@ switch metric
         eeg_metric =    'lc6';
         eeg_shift =     'conv';
         bold_shift =          '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 10; ...
                         10 12; 12 20; 20 30]';
         delays =        [2 4 5 6 8 10];
@@ -114,7 +114,7 @@ switch metric
         eeg_metric =    'lc6';
         eeg_shift =     'delay';
         bold_shift =          '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 10; ...
                         10 12; 12 20; 20 30]';
         delays =        [2 4 5 6 8 10];
@@ -137,7 +137,7 @@ switch metric
         eeg_metric =    'lc6';
         eeg_shift =     '';
         bold_shift =          'deconv';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 10; ...
                         10 12; 12 20; 20 30]';
         delays =        [];
@@ -160,7 +160,7 @@ switch metric
         eeg_metric =    'tp';
         eeg_shift =     'conv';
         bold_shift =          '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -181,7 +181,7 @@ switch metric
         eeg_metric =    'tp';
         eeg_shift =     'delay';
         bold_shift =          '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -201,8 +201,8 @@ switch metric
         id =            'tp_deconv';
         eeg_metric =    'tp';
         eeg_shift =     '';
-        bold_shift =          'deconv';
-        chans =         1:31;
+        bold_shift =    'deconv';
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [];
         id_chans =      labels;
@@ -223,7 +223,7 @@ switch metric
         eeg_metric =    'rmsf';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -244,7 +244,7 @@ switch metric
         eeg_metric =    'rmsf';
         eeg_shift =     'delay';
         bold_shift =          '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -265,7 +265,7 @@ switch metric
         eeg_metric =    'rmsf';
         eeg_shift =     '';
         bold_shift =    'deconv';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 30]';
         delays =        [];
         id_chans =      labels;
@@ -286,7 +286,7 @@ switch metric
         eeg_metric =    'icoh';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -307,7 +307,7 @@ switch metric
         eeg_metric =    'icoh_wnd';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -328,7 +328,7 @@ switch metric
         eeg_metric =    'icoh_wne';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -349,7 +349,7 @@ switch metric
         eeg_metric =    'icoh_bc';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -370,7 +370,7 @@ switch metric
         eeg_metric =    'wpli';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;
@@ -391,7 +391,7 @@ switch metric
         eeg_metric =    'wpli_wnd';
         eeg_shift =     'conv';
         bold_shift =    '';
-        chans =         1:31;
+        chans =         1:length(labels);
         bands =         [1 4; 4 8; 8 12; 12 30]';
         delays =        [2 4 5 6 8 10];
         id_chans =      labels;

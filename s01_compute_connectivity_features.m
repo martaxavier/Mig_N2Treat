@@ -50,21 +50,21 @@ for m = 1 : length(con_metrics)
         subject = subjects(s);
         
         disp(strcat('Computing connectivity features for', ... 
-            " ", subject,', metric'," ", metric, ' ...'));
+            " ", subject, ', metric', " ", metric, ' ...'));
 
         %---------------------------------------------------------    
         % Load data 
         %--------------------------------------------------------- 
 
         % Load eeg dataset of specified subject 
-        load(fullfile(path_data_in(s),data_in));
+        load(fullfile(path_data_in(s), data_in));
         
         % Save chanlocs structure if non existent 
-        if ~exist(fullfile('PARS','chanlocs.mat'),'file')
-            save(fullfile('PARS','chanlocs.mat'),'chanlocs');
+        if ~exist(fullfile(dataset, 'PARS', 'chanlocs.mat'), 'file')
+            save(fullfile(dataset, 'PARS',' chanlocs.mat'), 'chanlocs');
         end
 
-        first_last = dlmread(fullfile(path_markers_in(s),markers_in));
+        first_last = dlmread(fullfile(path_markers_in(s), markers_in));
         
         my_file = fullfile(path_markers_in(s), markers_sub_task_in);
         if exist(my_file,'file')
@@ -106,7 +106,7 @@ for m = 1 : length(con_metrics)
         % Statistical filtering + frequency average 
         %---------------------------------------------------------
 
-        disp('... filtering the connectomes for significance');
+        disp('... filtering the connectomes for significance ...');
         
         % Compute surrogates of the connectivity matrix to perform 
         % statistical filtering and remove non-significant connections 
@@ -166,6 +166,7 @@ for m = 1 : length(con_metrics)
         % Generate images of the estimated 
         % connectivity matrices and save them 
         if flag.report ~= 0  
+            disp('... generating and saving plots of connectomes ...');
             report_connectomes
         end
         
@@ -175,14 +176,14 @@ for m = 1 : length(con_metrics)
         
         % Save decision matrices and filtered connectivity matrix
         % in the output directory
-        decision_sig_out = strcat('decision_sig_',con_metric,'.mat');
-        decision_topo_out = strcat('decision_topo_',con_metric,'.mat');
-        conspec_sig_out = strcat('conspec_sig_filtered_',con_metric,'.mat');
-        conspec_topo_out = strcat('conspec_topo_filtered_',con_metric,'.mat');                
-        save(fullfile(path_data_out(s), decision_sig_out), 'decision_sig');
-        save(fullfile(path_data_out(s), decision_topo_out), 'decision_topo');
-        save(fullfile(path_data_out(s), conspec_sig_out), 'conspec_sig');
-        save(fullfile(path_data_out(s), conspec_topo_out), 'conspec_topo');
+%         decision_sig_out = strcat('decision_sig_',con_metric,'.mat');
+%         decision_topo_out = strcat('decision_topo_',con_metric,'.mat');
+%         conspec_sig_out = strcat('conspec_sig_filtered_',con_metric,'.mat');
+%         conspec_topo_out = strcat('conspec_topo_filtered_',con_metric,'.mat');                
+%         save(fullfile(path_data_out(s), decision_sig_out), 'decision_sig');
+%         save(fullfile(path_data_out(s), decision_topo_out), 'decision_topo');
+%         save(fullfile(path_data_out(s), conspec_sig_out), 'conspec_sig');
+%         save(fullfile(path_data_out(s), conspec_topo_out), 'conspec_topo');
                     
         % Save p-value of connectivity significance, corrected by FDR
         p_out = strcat('p_thresh_corrected_', con_metric, '.mat');
@@ -200,28 +201,10 @@ for m = 1 : length(con_metrics)
             metric = full_metric;
             get_metric_pars;
             
-            disp(strcat('computing the', " ", net_metric));
+            disp(strcat('... computing the', " ", net_metric, ' ...'));
         
             eeg_features = compute_network_metric(conspec_topo, ...
                 net_metric); 
-        
-            %---------------------------------------------------------    
-            % Mirror padd features before convolution  
-            %---------------------------------------------------------        
-
-            % Mirror padd the features at a length equal
-            % to the convolution kernal size + 1 (seconds)
-            eeg_features = eeg_features(first:last, :, :, :);
-
-            % Padd features in the pre-direction 
-            padsize = max(first - 1, hrf_kernel_seconds*fs);
-            eeg_features = padarray(eeg_features, ...
-                padsize, 'symmetric', 'pre');
-
-            % Padd features in the post-direction
-            padsize = max(n_pnts - last, hrf_kernel_seconds*fs);
-            eeg_features = padarray(eeg_features, ...
-                padsize, 'symmetric', 'post');
 
             %---------------------------------------------------------    
             % Convolve/delay features 
@@ -229,6 +212,8 @@ for m = 1 : length(con_metrics)
 
             disp('... convolving with a range of HRFs ...');
             
+            eeg_features = eeg_features(first:last, :, :, :);
+                        
             switch eeg_shift
 
                 case 'conv'
@@ -332,6 +317,7 @@ for m = 1 : length(con_metrics)
             %--------------------------------------------------------- 
             
             if flag.report ~= 0     
+                disp('... generating and saving plots of features ...');
                 report_network_features;
             end
             

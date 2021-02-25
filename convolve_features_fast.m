@@ -92,8 +92,8 @@ features_delayed = ifft(featuresF .* hrfF, n_conv) ./ n_conv;
 
 % Truncate the result of convolution to obtain a time-series
 % that is the  same length as the original signal
-%  features_delayed = features_delayed(floor(n_pnts_kern/2) ...
-%      : end - floor(n_pnts_kern/2) - 1, :);
+%   features_delayed = features_delayed(floor(n_pnts_kern/2) ...
+%       : end - floor(n_pnts_kern/2) - 1, :);
  
 % NOTE: should we use the central part of the convolution (matlab default)
 %       or should we use the first part of the convolution (spm_volterra)

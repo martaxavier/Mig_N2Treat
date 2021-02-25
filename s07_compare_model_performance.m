@@ -366,8 +366,8 @@ for f = 1 : n_fields
     H3 = get_report_heading(3, my_title);
     add(R, H3);
     
-%     Create a boxplot image for the current field 
-%     And add image to the report 
+	% Create a boxplot image for the current field 
+	% And add image to the report 
     b = boxplot(box.(field),'Colors',[0 0.4470 0.7410]);
     set(b, {'linew'}, {4}); 
     ax = gca; 
@@ -377,12 +377,13 @@ for f = 1 : n_fields
     ylabel(upper(field), 'FontSize', 22);
   
 %     set(groot, 'defaultFigureUnits','centimeters');
-%     set(groot, 'defaultFigurePosition',[0 0 20 30]);
+%     set(groot, 'defaultFigurePosition',[0 0 22 30]);
 %     figure;
 %     data = {[box.corr_train(:,1) box.corr_test(:,1)], ...
 %         [box.corr_train(:,2) box.corr_test(:,2)], ...
 %         [box.corr_train(:,3) box.corr_test(:,3)], ...
-%         [box.corr_train(:,4) box.corr_test(:,4)],}; 
+%         [box.corr_train(:,4) box.corr_test(:,4)], ...
+%         [box.corr_train(:,5) box.corr_test(:,5)]}; 
 %     b = boxplotGroup(data, 'PrimaryLabels', ...
 %         cellstr(upper(groups)), 'SecondaryLabels', ...
 %        {'Train', 'Test'});
@@ -390,10 +391,11 @@ for f = 1 : n_fields
 %     set(b.axis.Children(2).Children,'Color', '#D95319', 'linew', 1.5)
 %     set(b.axis.Children(3).Children,'Color', '#77AC30', 'linew', 1.5)
 %     set(b.axis.Children(4).Children,'Color', '#A2142F', 'linew', 1.5)
+%     set(b.axis.Children(5).Children,'Color', '#7E2F8E', 'linew', 1.5)
 %     hold on; ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; hold on;
 %     ax.YAxis.FontSize = 18;
-%     %ylim(ax,[0 1.5]); set(ax,'ytick', 0:0.2:1.5);
-%     ylim(ax, [0 1]);
+% %     ylim(ax,[0 1.5]); set(ax,'ytick', 0:0.2:1.5);
+%      ylim(ax, [0 1]);
     
     % Save the boxplot image in the specified output path
     img_out = strcat(field, '_boxplot.png');

@@ -443,15 +443,15 @@ img_out = strcat('TOPO_AVGEFP.png');
 saveas(gcf,fullfile(path_img_out,img_out));
 
 
-% Topographic maps of averaged (through delays and frequencies)
-% average coefficient estimates (absolute value)
-fig_title = strcat('Topographic map (abs values) of averaged', ...
-   ' (through delays and bands) coefficient estimates'); 
-figure('Name',fig_title); signal = abs(sum(sum(efp_model,3),2));
-topoplot(signal,chanlocs,topo_settings{:}); 
-caxis([0 max(signal)]); colorbar; 
-img_out = strcat('TOPO_AVGEFP_abs.png');
-saveas(gcf,fullfile(path_img_out,img_out));
+% % Topographic maps of averaged (through delays and frequencies)
+% % average coefficient estimates (absolute value)
+% fig_title = strcat('Topographic map (abs values) of averaged', ...
+%    ' (through delays and bands) coefficient estimates'); 
+% figure('Name',fig_title); signal = abs(sum(sum(efp_model,3),2));
+% topoplot(signal,chanlocs,topo_settings{:}); 
+% caxis([0 max(signal)]); colorbar; 
+% img_out = strcat('TOPO_AVGEFP_abs.png');
+% saveas(gcf,fullfile(path_img_out,img_out));
 
 % Topographic maps of averaged (through delays and frequencies)
 % absolute coefficient estimates  

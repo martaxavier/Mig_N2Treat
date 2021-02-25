@@ -19,7 +19,7 @@ for s = 1 : length(subjects)
     end   
     
     disp(strcat('Extracting EEG markers', ...
-        ' for subject'," ", subject));
+        ' for subject'," ", subject, ' ...'));
  
     %---------------------------------------------------------    
     % Extract information from EEG event struct 
@@ -39,6 +39,11 @@ for s = 1 : length(subjects)
     % (first_eeg) and end (last_eeg) of the simultaneous 
     % BOLD acquisition 
     idxs_scan = find(ismember(type,markers_task));
+    
+    % For the NODDI dataset, remove 5 first scans 
+    if strcmp(dataset, 'NODDI')
+        idxs_scan(1 : 5) = [];
+    end
     scan_eeg = round(latency(idxs_scan));
     first_eeg = round(latency(idxs_scan(1))); 
     last_eeg = round(latency(idxs_scan(end)));

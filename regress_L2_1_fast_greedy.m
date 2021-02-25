@@ -1,6 +1,6 @@
 function [B,stats] = regress_L2_1_fast_greedy(X,Y,varargin)
 
-%   [B,STATS] = regress_L2_1_fast_greedy_simulations(X,Y,...) 
+%   [B,STATS] = regress_L2_1_fast_greedy(X,Y,...) 
 %   performs L2 and L1-constrained linear least squares fits -
 %   elastic net fit - relating the predictors in X to the responses 
 %   in Y. In this version (i.e, "fast") the optimization method 
