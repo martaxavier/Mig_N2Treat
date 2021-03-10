@@ -14,12 +14,10 @@
 %   subjects = ["sub-patient002", "sub-patient003", ...
 %   "sub-patient005", "sub-patient006", "sub-patient007", ...
 %   "sub-patient008", "sub-patient012"];
-% subjects = ["sub-32" "sub-35" "sub-36" "sub-37" "sub-38", ...
-%     "sub-39" "sub-40" "sub-42" "sub-43" "sub-44" "sub-45", ...
-%     "sub-46" "sub-47" "sub-48" "sub-49" "sub-50"]; 
-subjects = ["sub-32" "sub-36" "sub-37" "sub-38", ...
-    "sub-39"]; 
-
+ subjects = ["sub-32" "sub-36" "sub-37" "sub-38" ...
+    "sub-39" "sub-40" "sub-42" "sub-43" "sub-44" "sub-45", ...
+     "sub-46" "sub-47" "sub-48" "sub-49" "sub-50"]; 
+    
 % Dataset
 % 'Mig_N2Treat', 'NODDI';
 dataset = 'NODDI'; 
@@ -56,7 +54,7 @@ deconv_method = "time_series";
 
 % EEG feature decomposition metrics
 % 'lc4','lc6','rmsf','tp'
-metrics = ["lc4", "rmsf", "tp"];
+metrics = ["rmsf", "tp", "lc4", "icoh_wnd", "icoh_bc"];
 
 % Regression models 
 % 'l21_1','elasticnet'
@@ -194,7 +192,7 @@ filename.eeg_markers_sub_task = strcat(sub_task,'_timing_file.txt');
 filename.bold_markers =         strcat(task,'_timing_file.txt');
     
 % EEG/BOLD Processed
-filename.eeg_processed =        "eeg_processed.mat";
+filename.eeg_processed =        "eeg_processed_bireref_ica_cap.mat";
 filename.bold_processed =       "bold_processed.txt";
 filename.bold_img_processed =   "bold_img_processed.txt";
 

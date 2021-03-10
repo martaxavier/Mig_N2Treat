@@ -159,8 +159,9 @@ else
     %p-values are already a row vector
     [p_sorted, sort_ids]=sort(pvals);
 end
-[dummy, unsort_ids]=sort(sort_ids); %indexes to return p_sorted to pvals order
-m=length(p_sorted); %number of tests
+[~, unsort_ids] = sort(sort_ids); %indexes to return p_sorted to pvals order
+clear sort_ids;
+m = length(p_sorted); %number of tests
 
 if strcmpi(method,'pdep')
     %BH procedure for independence or positive dependence
@@ -182,6 +183,7 @@ if nargout>3
     %compute adjusted p-values; This can be a bit computationally intensive
     adj_p=zeros(1,m)*NaN;
     [wtd_p_sorted, wtd_p_sindex] = sort( wtd_p );
+    clear wtd_p;
     nextfill = 1;
     for k = 1 : m
         if wtd_p_sindex(k)>=nextfill
@@ -192,11 +194,14 @@ if nargout>3
             end
         end
     end
+    clear wtd_p_sindex wtd_p_sorted;
     adj_p=reshape(adj_p(unsort_ids),s);
+    clear unsort_ids;
 end
 
 rej=p_sorted<=thresh;
 max_id=find(rej,1,'last'); %find greatest significant pvalue
+clear rej
 if isempty(max_id)
     crit_p=0;
     h=pvals*0;

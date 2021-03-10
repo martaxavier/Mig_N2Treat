@@ -20,6 +20,12 @@ for s = 1 : length(subjects)
     
     disp(strcat('Extracting EEG markers', ...
         ' for subject'," ", subject, ' ...'));
+    
+    % Switch order of the channels and save it again
+    load('Mig_N2Treat\PARS\chanlocs.mat');
+    labels = chanlocs.labels;
+    EEG = EEGCAP;
+    labels_sub = EEG.chanlocs.labels;
  
     %---------------------------------------------------------    
     % Extract information from EEG event struct 

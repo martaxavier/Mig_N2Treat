@@ -112,16 +112,29 @@ for center_X = win_center_X(2 : end)
 
 end
 
-% Padd the connectivity to match the begining and 
-% spectrum to match the end of the input data 
-padd_size = (n_pnts_Cxy - length(win_center_X)) / 2;
+% Padd the connectivity spectrum to match the 
+% begining and the end of the input data 
+padd_size = ceil((n_pnts_Cxy - length(win_center_X)) / 2);
 Cxy = padarray(Cxy, [padd_size 0], ...
     'replicate','both');
+
+% Remove the last value inserted if the
+% excess is odd 
+if rem(n_pnts_Cxy - length(win_center_X), 2) ~= 0 
+	Cxy(end, :, :) = [];
+end
 
 if strcmp(metric,'icoh') && ...
         strcmp(stat_filt_method, 'analytical')
     p_values = padarray(p_values, ...
         [padd_size 0], 'replicate','both');
+	
+	% Remove the last value inserted if the
+	% excess is odd 
+	if rem(n_pnts_Cxy - length(win_center_X), 2) ~= 0 
+		p_values(end, :, :) = [];
+	end
+
 end
 
 end

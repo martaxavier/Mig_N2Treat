@@ -229,12 +229,7 @@ for m = 1 : length(con_metrics)
                     siz = size(eeg_features_delayed);
                     eeg_features_delayed = permute(eeg_features_delayed, ...
                         [(1:length(siz(1:end-2))) length(siz) ...
-                        length(siz(1 : end-1))]);
-
-                    % Prune the features to match the BOLD acquisition
-                    % times
-                    eeg_features_delayed = eeg_features_delayed...
-                        (first:last, :, :, :, :);                
+                        length(siz(1 : end-1))]);           
 
                 case 'delay'
 
@@ -245,16 +240,7 @@ for m = 1 : length(con_metrics)
                     eeg_features_delayed = delay_features(eeg_features, ...
                         fs, delays, [first last]);
 
-                    % Prune the features to match the BOLD acquisition
-                    % times
-                    eeg_features_delayed = eeg_features_delayed...
-                        (first:last, :, :, :, :);
-
             end
-
-            % Prune the original features to match the BOLD 
-            % acquisition times 
-            eeg_features = eeg_features(first:last, :, :, :, :);
 
             % Update number of time-points 
             n_pnts = size(eeg_features,1);
