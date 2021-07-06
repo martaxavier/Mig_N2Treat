@@ -16,10 +16,10 @@ for s = 1 : length(subjects)
     
     % Create output directories, if non existent 
     if ~exist(path_img_out, 'dir'); mkdir(path_img_out); end
-    if ~exist(path_pars_out, 'dir'); mkdir(path_pars_out); end
+    if ~exist(path_pars, 'dir'); mkdir(path_pars); end
     
     % Load and read BOLD data of current subject 
-    y = dlmread(fullfile(path_data_in(s), data_in));
+    y = dlmread(fullfile(path_data_in(s, se), data_in));
     
     % Estimate the order of the acf model 
     % for the BOLD time-series of the current 
@@ -49,13 +49,14 @@ acf_order = table(subjs, order);
 
 % Save table containing the estimated acf order for these
 % datasets 
-save(fullfile(path_pars_out, 'acf_order.mat'),'acf_order');
+data_out = strcat('acf_order_', session, '.mat');
+save(fullfile(path_pars, data_out),'acf_order');
 
 % Repeat for deconvolved BOLD data 
 if contains(metrics, 'deconv')
     acf_order = acf_order_deconv;
     acf_order_deconv = table(subjs, order_deconv);
-    save(fullfile(path_pars_out, 'acf_order_deconv.mat'), ...
+    save(fullfile(path_pars, 'acf_order_deconv.mat'), ...
         'acf_order');
 end
 

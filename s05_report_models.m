@@ -1,7 +1,7 @@
 % Create the report heading 
-my_title = strcat(upper(reg_model),' MODELS');
-H1 = get_report_heading(1,my_title);
-add(R,H1) 
+my_title = strcat(upper(session), ' MODELS');
+H1 = get_report_heading(1, my_title);
+add(R, H1) 
 
 n_subjects = length(subjects);
 n_metrics = length(metrics);
@@ -27,14 +27,14 @@ for m = 1 : n_metrics
     % delay for the BOLD deconvolution 
     % of each subject
     if strcmp(bold_shift,'deconv')
-        load(fullfile(path_pars_in, ...
+        load(fullfile(path_pars, ...
             'deconv_delay.mat'));
     end
     
     % Add metric heading to the report 
     my_title = upper(metric);
-    H2 = get_report_heading(2,my_title);
-    add(R,H2);
+    H2 = get_report_heading(2, my_title);
+    add(R, H2);
     
     % --------------------------------------------------------
     % Go through subjects 
@@ -45,7 +45,8 @@ for m = 1 : n_metrics
         subject = subjects(s);
 
         % Specify directory where images are to be saved 
-        path_img_metric_out = strcat(path_img_out(s,r),'\',metric);
+        path_img_metric_out = strcat(path_img_out(s), ...
+             '\', metric, '\', session);
 
         % Create directory where results are to be saved 
         if ~exist(path_img_metric_out, 'dir')
@@ -54,51 +55,58 @@ for m = 1 : n_metrics
     
         % Broadcast the current pipeline stage 
         disp(strcat('Creating report of model ', ...
-            ' results for subject'," ",subject,', metric', ...
-            " ",metric, ' ...'));
+            ' results for subject', " ", subject, ', metric', ...
+            " ", metric, ' ...'));
         
         % Define input EEG and BOLD data, according
         % to current metric
-        eeg_in = strcat(eeg_metric,'_', ...
-            'eeg_feature','_',eeg_shift,'.txt');
-        bold_in = strcat('bold_processed', ...
-        '_',bold_shift,'.txt');
-        if contains(eeg_in,'_.'); eeg_in = ...
-                replace(eeg_in,'_.','.'); end
-        if contains(bold_in,'_.'); bold_in = ...
-                replace(bold_in,'_.','.'); end
+        eeg_in = strcat(eeg_metric, '_', ...
+            'eeg_feature', '_', eeg_shift, '.txt');
+        bold_in = strcat('bold_preproc', ...
+        '_', bold_shift, '.txt');
+        if contains(eeg_in, '_.'); eeg_in = ...
+                replace(eeg_in, '_.', '.'); end
+        if contains(bold_in, '_.'); bold_in = ...
+                replace(bold_in, '_.', '.'); end
     
         % Load BOLD and EEG data
-        eeg = dlmread(fullfile(path_eeg_in(s),eeg_in));
-        bold = dlmread(fullfile(path_bold_in(s),bold_in));
+        eeg = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
+        bold = dlmread(fullfile(path_bold_in(s, se), bold_in));
 
         % Load model results for current subject,
         % model pair 
-        model_in = strcat(metric,'_','model', ...
-            '_',cv_method,'.mat');
-        folds_in = strcat(metric,'_','model_folds', ...
-            '_',cv_method,'.mat');
-        load(fullfile(path_data_in(s,r),model_in));
-        load(fullfile(path_data_in(s,r),folds_in));
+        model_in = strcat(metric, '_', 'model', ...
+            '_', cv_method, '.mat');
+        folds_in = strcat(metric, '_', 'model_folds', ...
+            '_', cv_method, '.mat');
+        if ~strcmp(cv_method, 'sessions')
+            load(fullfile(path_data_in(s), model_in));
+        else
+            model = [];
+        end
+        load(fullfile(path_data_in(s), folds_in));
         
+        % CHANGE THIS NEXT - PUT IT IN KFOLD 
+        optimal.yhat(:, se) = optimal.efp(1, se) + eeg*optimal.efp(2:end, se);
+
         % Save estimated deconvolution 
         % delay for current subject 
         % (when applicable)
         deconv_delay = [];
-        if strcmp(bold_shift,'deconv')
+        if strcmp(bold_shift, 'deconv')
             deconv_delay = ...
-                table2array(deconv_delay(s,2));
+                table2array(deconv_delay(s, 2));
         end
 
         % Add subject heading to the report 
         my_title = subjects(s);
-        H3 = get_report_heading(3,my_title);
-        add(R,H3);
+        H3 = get_report_heading(3, my_title);
+        add(R, H3);
 
         % Plot and/or report model results (EFP)
-        plot_efp(bold, model, optimal, reg_model, metric, ...
-            deconv_delay, fs, R, flag.report, ...
-            path_img_metric_out);
+        plot_efp(bold, model, optimal, reg_models, metric, ...
+            cv_method, se, deconv_delay, fs, R, flag.report, ...
+            path_img_metric_out, path_pars);
 
     end % finish looping through metrics 
 
@@ -110,7 +118,7 @@ end % finish looping through subjects
 %/////////////////////////////////////////////////////////////
 
 function [] = plot_efp(bold, model, optimal, reg_model, metric, ...
-    deconv_delay, fs, R, report, path_img_out)
+    cv_method, se, deconv_delay, fs, R, report, path_img_out, path_pars)
 
 % ------------------------------------------------------------
 % Read inputs 
@@ -143,15 +151,29 @@ topo_settings = {'electrodes','labels', ...
 
 % Assign model variables 
 % that are averaged through folds 
-efp_model =     model.efp;
-lambda_model =  model.lambda;
-rho_model =     model.rho; 
-df_model =      model.df;
-yhat_model =    model.yhat;
-nmse_model =    model.nmse;
-bic_test =      mean(optimal.bic_test);
-nmse_test =     mean(optimal.nmse_test);
-corr_test =     mean(optimal.corr_test);
+if ~strcmp(cv_method, 'sessions')
+    
+    efp_model =     model.efp;
+    lambda_model =  model.lambda;
+    rho_model =     model.rho; 
+    df_model =      model.df;
+    yhat_model =    model.yhat;
+    bic_test =      mean(optimal.bic_test);
+    nmse_test =     mean(optimal.nmse_test);
+    corr_test =     mean(optimal.corr_test);
+    
+else
+    
+    efp_model =     optimal.efp(:, se);
+    lambda_model =  optimal.lambda(se);
+    rho_model =     optimal.rho(se); 
+    df_model =      optimal.df(se);
+    yhat_model =    optimal.yhat(:, se);
+    bic_test =      optimal.bic_test(se);
+    nmse_test =     optimal.nmse_test(se);
+    corr_test =     optimal.corr_test(se);
+    
+end
 
 % ------------------------------------------------------------
 % Plot model variables - performance and final model
@@ -173,7 +195,7 @@ message = {rho_msg, lambda_msg, df_msg, bic_msg, nmse_msg, corr_msg};
 figure('Name','Model variables'); title('Model variables')
 x = [0.1 0.1 0.1 0.1 0.1 0.1]; y = [0.8 0.7 0.6 0.5 0.4 0.3];
 text(x,y,message, 'FontSize', 14); set(gca,'xtick',[],'ytick',[]);
-img_out = 'MODEL.png'; saveas(gcf,fullfile(path_img_out,img_out));
+img_out = 'MODEL.png'; saveas(gcf, fullfile(path_img_out, img_out));
 
 % ------------------------------------------------------------
 % Report model variables - performance and final model
@@ -233,9 +255,6 @@ time = 0 : 1/fs : (length(bold)-1)*(1/fs);
 fig = figure('Name', strcat('Predicted BOLD signal', ...
     ' and original BOLD signal'));
 fig.Position(3:4) = fig.Position(3:4)*5;
-%nmse_msg = upper(strcat('nmse: ', num2str(nmse_model)));
-%text(time(end)-50,-2,nmse_msg, 'FontSize', 22, ...
-%    'FontName','Arial'); hold on;
 plot(time, bold,'LineWidth',2.5,'Color','#1ca9df'); hold on; 
 plot(time, yhat_model,'LineWidth',3,'Color','#4acb84');
 legend('BOLD signal', 'BOLD estimate','FontSize',22, ...

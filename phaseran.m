@@ -57,6 +57,6 @@ for k = 1:nsurr
    fft_recblk_surr(interv2,:) = fft_recblk(interv2,:).*ph_interv2;
    
    % Inverse transform
-   surrblk(:,:,k)= real(ifft(fft_recblk_surr));
+   surrblk(:,:,k)= real(ifft(fft_recblk_surr, 'symmetric'));
    
 end

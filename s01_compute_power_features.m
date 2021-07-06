@@ -12,7 +12,7 @@
 %       3)  Convolution of all features with a range of HRFs/
 %           shifting of all features with a Frange of delays 
 %
-%       4)  Prunning of all features according to the beginning 
+%       4)  Psening of all features according to the beginning 
 %           and end of the simultaneous BOLD acquisition/ according
 %           to the current task design 
 %
@@ -49,22 +49,16 @@ for m = 1 : length(metrics)
         %--------------------------------------------------------- 
 
         % Create output directories if non-existent 
-        if ~exist(path_data_out(s), 'dir'); mkdir(path_data_out(s)); end
-        if ~exist(path_img_out(s), 'dir'); mkdir(path_img_out(s)); end   
+        if ~exist(path_data_out(s, se), 'dir'); mkdir(path_data_out(s, se)); end
+        if ~exist(path_img_out(s, se), 'dir'); mkdir(path_img_out(s, se)); end   
         
         % Load eeg dataset of specified subject 
-        load(fullfile(path_data_in(s),data_in));
-        
-        % Save chanlocs structure if non existent 
-        if ~exist(fullfile(dataset,'PARS','chanlocs.mat'),'file')
-            chanlocs = EEG.chanlocs;
-            save(fullfile(dataset,'PARS','chanlocs.mat'),'chanlocs');
-        end
+        load(fullfile(path_data_in(s, se), data_in));
 
-        first_last = dlmread(fullfile(path_markers_in(s),markers_in));
+        first_last = dlmread(fullfile(path_markers_in(s, se), markers_in));
         
-        my_file = fullfile(path_markers_in(s), markers_sub_task_in);
-        if exist(my_file,'file')
+        my_file = fullfile(path_markers_in(s, se), markers_sub_task_in);
+        if exist(my_file, 'file')
             sub_task_design = dlmread(my_file);
         end
         
@@ -87,7 +81,7 @@ for m = 1 : length(metrics)
         disp('... performing time-frequency decomposition ...');
                     
         [power, f_vector] = tf_analysis_power_spectrum...
-            (data,[f_min f_max], n_freq, tf_method, ...
+            (data, [f_min f_max], n_freq, tf_method, ...
             tf_wavelet_kernel_seconds, tf_sliding_win_seconds, ...
             n_wins_welch, fs_eeg, fs);   
  
@@ -163,8 +157,6 @@ for m = 1 : length(metrics)
             
         end
 
-        %eeg_features = eeg_features(first_current:last_current, :, :);
-
         %---------------------------------------------------------    
         % Convolution with HRF or delay
         %---------------------------------------------------------
@@ -190,7 +182,7 @@ for m = 1 : length(metrics)
                         [perm(1:end-2) perm(end) perm(end-1)]);
                 end
                 
-                % Prune the features to match the BOLD acquisition
+                % Psee the features to match the BOLD acquisition
                 % times
                 eeg_features_delayed = eeg_features_delayed...
                     (first_current:last_current, :, :, :);
@@ -204,7 +196,7 @@ for m = 1 : length(metrics)
                 eeg_features_delayed = delay_features(eeg_features, ...
                     fs_current, delays, [first_current,last_current]); 
                 
-                % Prune the features to match the BOLD acquisition
+                % Psee the features to match the BOLD acquisition
                 % times
                 eeg_features_delayed = eeg_features_delayed...
                    (first_current:last_current, :, :, :, :);
@@ -220,19 +212,19 @@ for m = 1 : length(metrics)
         
         if ~isempty(sub_task)
             
-            % Prune the sub_task_design to match the duration 
+            % Psee the sub_task_design to match the duration 
             % of the task 
             sub_task_design = sub_task_design(first_current : ...
                 last_current);
             
-            % Prune the original features according to the
+            % Psee the original features according to the
             % sub-task design 
             eeg_features = eeg_features(logical(sub_task_design), ...
                 :, :);
             
             if ~isempty(eeg_shift)
                 
-                % Prune the delayed features according to the 
+                % Psee the delayed features according to the 
                 % sub-task design 
                 eeg_features_delayed = eeg_features_delayed...
                     (logical(sub_task_design), :, :, :);
@@ -292,7 +284,6 @@ for m = 1 : length(metrics)
                 
         end 
 
-
         %---------------------------------------------------------    
         % Normalize features (0 mean, 1 std)
         %---------------------------------------------------------
@@ -344,9 +335,9 @@ for m = 1 : length(metrics)
                         plotting_shift,', delay'," " , ...
                         num2str(delays(plotting_delay)), 's'));
 
-                    img_out = strcat(id_bands(b),num2str(delays ...
-                        (plotting_delay)),'sec',num2str(c),'chan.png');
-                    saveas(gcf,fullfile(path_img_out(s),img_out));
+                    img_out = strcat(id_bands(b), num2str(delays ...
+                        (plotting_delay)), 'sec', num2str(c), 'chan.png');
+                    saveas(gcf,fullfile(path_img_out(s, se), img_out));
 
                 end % looping through bands
 
@@ -401,11 +392,11 @@ for m = 1 : length(metrics)
         end 
 
         % Write EEG feature files
-        dlmwrite(fullfile(path_data_out(s), ...
-            feature_out),eeg_features_norm);
+        dlmwrite(fullfile(path_data_out(s, se), ...
+            feature_out), eeg_features_norm);
 
-        dlmwrite(fullfile(path_data_out(s), ...
-            feature_out_eeg_fs),eeg_features_eeg_fs);
+        %dlmwrite(fullfile(path_data_out(s), ...
+        %    feature_out_eeg_fs),eeg_features_eeg_fs);
         
         if ~isempty(eeg_shift)
             dlmwrite(fullfile(path_data_out(s), ...

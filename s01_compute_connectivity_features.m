@@ -18,7 +18,7 @@
 %   4)  Convolution of the resulting EEG features with a range of HRFs/
 %       shifting of all the features with a range of delays 
 % 
-%   5)  Prunning of all the features to match the beginning and end of the 
+%   5)  Psening of all the features to match the beginning and end of the 
 %       simultaneous BOLD acquisition/according to the current task design
 % 
 %      6)   Normalization of all EEG features to have 0 mean and standard 
@@ -58,11 +58,6 @@ for m = 1 : length(con_metrics)
 
         % Load eeg dataset of specified subject 
         load(fullfile(path_data_in(s), data_in));
-        
-        % Save chanlocs structure if non existent 
-        if ~exist(fullfile(dataset, 'PARS', 'chanlocs.mat'), 'file')
-            save(fullfile(dataset, 'PARS',' chanlocs.mat'), 'chanlocs');
-        end
 
         first_last = dlmread(fullfile(path_markers_in(s), markers_in));
         
@@ -100,7 +95,7 @@ for m = 1 : length(con_metrics)
             fs, con_metric, stat_filt_method);
         
         % Update number of time-points 
-         n_pnts = size(conspec,1);        
+         n_pnts = size(conspec, 1);        
            
         %---------------------------------------------------------    
         % Statistical filtering + frequency average 
@@ -114,7 +109,7 @@ for m = 1 : length(con_metrics)
             statistical_filtering(data, [f_min f_max], n_freq, ...
             f_vector, tf_sliding_win_seconds, fs_eeg, fs, ...
             con_metric, conspec, p_values, stat_filt_method, ...
-            surr_method, n_surrs, path_img_out(s));
+            surr_method, n_surrs, path_img_out(s), path_pars);
         
         % Average connectivity for each frequency band in case it hasn't
         % been done yet 
@@ -252,18 +247,18 @@ for m = 1 : length(con_metrics)
 
             if ~isempty(sub_task)
 
-                % Prune the sub_task_design to match the duration 
+                % Psee the sub_task_design to match the duration 
                 % of the task 
                 sub_task_design = sub_task_design(first : last);
 
-                % Prune the original features according 
+                % Psee the original features according 
                 % to the sub-task design 
                 eeg_features = eeg_features(logical...
                     (sub_task_design), :, :, :);
 
                 if ~isempty(eeg_shift)
 
-                    % Prune the delayed features according to the 
+                    % Psee the delayed features according to the 
                     % sub-task design 
                     eeg_features_delayed = eeg_features_delayed...
                         (logical(sub_task_design), :, :, :, :);
@@ -381,8 +376,12 @@ con_metrics = strings(length(metrics), 1);
 net_metrics = strings(length(metrics), 1);
 
 for m = 1 : length(metrics)
-    con_metrics(m) = extractBefore(metrics(m), '_');
-    net_metrics(m) = extractAfter(metrics(m), '_');
+    
+    metric = metrics(m);
+    get_metric_pars;
+    
+    con_metrics(m) = con_metric;
+    net_metrics(m) = net_metric;
 end
 
 [con_metrics, ~, c] = unique(con_metrics);

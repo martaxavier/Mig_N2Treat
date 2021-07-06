@@ -191,7 +191,7 @@ end
 %/////////////////////////////////////////////////////////////
 
 % ============================================================
-% perform_anova1(models,fields,path_data_out)             
+% perform_anova1(models, fields, path_data_out)             
 % ============================================================
 
 function [box,mcomp] = perform_anova1(models, fields, path_data_out)
@@ -379,11 +379,11 @@ for f = 1 : n_fields
 %     set(groot, 'defaultFigureUnits','centimeters');
 %     set(groot, 'defaultFigurePosition',[0 0 22 30]);
 %     figure;
-%     data = {[box.bic_train(:,1) box.bic_test(:,1)], ...
-%         [box.bic_train(:,2) box.bic_test(:,2)], ...
-%         [box.bic_train(:,3) box.bic_test(:,3)], ...
-%         [box.bic_train(:,4) box.bic_test(:,4)], ...
-%         [box.bic_train(:,5) box.bic_test(:,5)]}; 
+%     data = {[box.corr_train(:,1) box.corr_test(:,1)], ...
+%         [box.corr_train(:,2) box.corr_test(:,2)], ...
+%         [box.corr_train(:,3) box.corr_test(:,3)], ...
+%         [box.corr_train(:,4) box.corr_test(:,4)], ...
+%         [box.corr_train(:,5) box.corr_test(:,5)]}; 
 %     b = boxplotGroup(data, 'PrimaryLabels', ...
 %         cellstr(upper(groups)), 'SecondaryLabels', ...
 %        {'Train', 'Test'});
@@ -395,8 +395,8 @@ for f = 1 : n_fields
 %     hold on; ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; hold on;
 %     ax.YAxis.FontSize = 18;
 %    %ylim(ax,[0 1.5]); set(ax,'ytick', 0:0.2:1.5);
-%    %ylim(ax, [0 1]);
-    
+%    ylim(ax, [0 1]);
+%     
     % Save the boxplot image in the specified output path
     img_out = strcat(field, '_boxplot.png');
     source = fullfile(path_img_out, img_out);
@@ -414,7 +414,7 @@ end
 
 function [box,mcomp] = perform_anova2(models, fields, path_data_out)
 
-%   [box,mcomp] = perform_anova1(models,fields,path_data_out) performs
+%   [box,mcomp] = perform_anova2(models,fields,path_data_out) performs
 %                 analysis of variance (ANOVA) on the 'model' fields 
 %                 specified in 'fields'
 %

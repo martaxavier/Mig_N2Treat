@@ -33,7 +33,7 @@ win_samples = win_seconds*fs_X + 1;             % window size (samples)
 f_max = f_range(2);                             % maximum frequency 
 f_min = f_range(1);                             % minimum freuency
 
-f_vector = linspace(f_min,f_max,n_freq);        % vector of frequencies
+f_vector = linspace(f_min, f_max, n_freq);      % vector of frequencies
 
 max_freq_res = max(diff(f_vector));             % maximum frequency 
                                                 % resolution of the vector

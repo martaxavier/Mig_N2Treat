@@ -27,8 +27,8 @@ if flag.report == 2
         
         % Add image of BOLD, BOLD deconvolved, BOLD
         % events
-        source = fullfile(strcat(path_img_out(s), ...
-            '\',rsn_method),strcat(data_bold_out, ...
+        source = fullfile(strcat(path_img_out(s, se), ...
+            '\', rsn_method),strcat(data_bold_out, ...
             '.png'));
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
@@ -49,7 +49,7 @@ if flag.report == 2
         
         % Load file with the results of deconvolution 
         deconv_file = strcat('deconv_',deconv_method,'.mat');
-        load(strcat(path_data_out(s),deconv_file));
+        load(strcat(path_data_out(s, se),deconv_file));
         
         % Compute the Pearson's correlation 
         % between heigth and the remaining 
@@ -73,25 +73,25 @@ if flag.report == 2
         add(R,H3);
         
         % Height
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'histo_estimated_hrfs_height.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % Time-to-peak
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'histo_estimated_hrfs_timetopeak.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % FWHM
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'histo_estimated_hrfs_fwhm.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % Number of events 
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'histo_estimated_number_events.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
@@ -102,25 +102,25 @@ if flag.report == 2
         add(R,H3);
         
         % Height
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'map_estimated_hrfs_height.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % Time-to-peak
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'map_estimated_hrfs_timetopeak.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % FWHM
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'map_estimated_hrfs_fwhm.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
         
         % FWHM
-        source = fullfile(path_img_out(s),...
+        source = fullfile(path_img_out(s, se),...
             'map_estimated_number_events.png');
         I = FormalImage(source);
         I.ScaleToFit=true; add(R,I);
@@ -171,19 +171,19 @@ best_delay = zeros(n_subjects,1);
 
 for s = 1 : n_subjects
       
-    if ~exist(path_data_out(s), 'dir')
-        mkdir(path_data_out(s))
+    if ~exist(path_data_out(s, se), 'dir')
+        mkdir(path_data_out(s, se))
     end
-    if ~exist(path_img_out(s), 'dir')
-        mkdir(path_img_out(s))
+    if ~exist(path_img_out(s, se), 'dir')
+        mkdir(path_img_out(s, se))
     end
 
-    data = dlmread(fullfile(path_data_in(s),data_in));
+    data = dlmread(fullfile(path_data_in(s, se),data_in));
     n_pnts = size(data,1);
     n_voxs = size(data,2);
     
     if strcmp(deconv_method,'voxel_wise')
-        dmn = dlmread(fullfile(path_data_in(s),dmn_in));
+        dmn = dlmread(fullfile(path_data_in(s, se),dmn_in));
         data_img = zeros([size(dmn) 4]);
     end
     
@@ -227,7 +227,7 @@ for s = 1 : n_subjects
         
         % Load file with the results of deconvolution 
         deconv_file = strcat('deconv_',deconv_method,'.mat');
-        load(fullfile(path_data_out(s),deconv_file));
+        load(fullfile(path_data_out(s, se),deconv_file));
         
     end
     
@@ -278,11 +278,11 @@ for s = 1 : n_subjects
     data_deconv = zscore(data_deconv);
 
     % Save deconvolved BOLD sinal in output directory
-    dlmwrite(strcat(path_data_out(s),data_out,'.txt'), ...
+    dlmwrite(strcat(path_data_out(s, se),data_out,'.txt'), ...
         zscore(data_deconv));
 
     deconv_file = strcat('deconv_',deconv_method,'.mat');
-    save(strcat(path_data_out(s),deconv_file),...
+    save(strcat(path_data_out(s, se),deconv_file),...
         'hrf_beta','hrf_pars','event_bold');
     
     % Leave if image generation
@@ -304,7 +304,7 @@ for s = 1 : n_subjects
         delay_msg = strcat(upper('delay:'), " ", num2str(hrf_lag), ' s');
         text(time(end)-5,1,delay_msg,'FontSize', 12); hold on;
         xlabel('Time (s)'); title('Estimated HRF');
-        saveas(gcf,fullfile(path_img_out(s),strcat('estimated_hrf.png')));
+        saveas(gcf,fullfile(path_img_out(s, se),strcat('estimated_hrf.png')));
 
         event_plot=zeros(1,n_pnts);
         event_plot(event_bold{1,1})=1;
@@ -321,7 +321,7 @@ for s = 1 : n_subjects
         legend('BOLD','BOLD deconvolved','BOLD events','FontSize',14, ...
             'FontWeight','normal'); legend('boxoff');
         xlabel('Time (s)');
-        saveas(gcf,fullfile(path_img_out(s),strcat(data_out,'.png')));
+        saveas(gcf,fullfile(path_img_out(s, se),strcat(data_out,'.png')));
         
         % NOTE - zscore returns the z-score for each element of X 
         % such that columns of X are centered to have mean 0 and 
@@ -365,7 +365,7 @@ for s = 1 : n_subjects
         title('Estimated HRFs of voxels in the DMN', ...
             'FontWeight','Normal'); set(gca,'FontSize',16); 
         colorbar; img_out = 'estimated_hrfs';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');  
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');  
         
         % Plot histogram of height
         fig = figure('Name','Height - histogram');
@@ -376,7 +376,7 @@ for s = 1 : n_subjects
         ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; 
         set(gca,'FontSize',16); 
         img_out = 'histo_estimated_hrfs_height';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');  
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');  
              
         % Plot map of height 
         fig = figure('Name','Height - map');
@@ -388,7 +388,7 @@ for s = 1 : n_subjects
             'in the DMN, axial slice (z ='," ", num2str(zslice),')'),...
             'FontWeight','Normal'); set(gca,'FontSize',16); colorbar; 
         img_out = 'map_estimated_hrfs_height';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');  
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');  
         
         % Plot histogram of time-to-peak
         fig = figure('Name','Time-to-peak'); 
@@ -399,7 +399,7 @@ for s = 1 : n_subjects
         ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; 
         set(gca,'FontSize',16); 
         img_out = 'histo_estimated_hrfs_timetopeak';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png'); 
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png'); 
         
         % Plot map of time-to-peak 
         fig = figure('Name','Time-to-peak - map');
@@ -411,7 +411,7 @@ for s = 1 : n_subjects
             'in the DMN, axial slice (z ='," ", num2str(zslice),')'),...
             'FontWeight','Normal'); set(gca,'FontSize',16);
         img_out = 'map_estimated_hrfs_timetopeak';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png'); 
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png'); 
         
         % Plot weighted map of time-to-peak 
         % IM HERE, SCALE CONTINUES TO BE INCORRECT 
@@ -430,7 +430,7 @@ for s = 1 : n_subjects
         ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; 
         set(gca,'FontSize',16); 
         img_out = 'histo_estimated_hrfs_fwhm';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');  
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');  
         
         % Plot map of FWHM 
         fig = figure('Name','FWHM - map');
@@ -442,7 +442,7 @@ for s = 1 : n_subjects
             'in the DMN, axial slice (z ='," ", num2str(zslice),')'),...
             'FontWeight','Normal'); set(gca,'FontSize',16);
         img_out = 'map_estimated_hrfs_fwhm';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png'); 
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png'); 
 
         % Plot histogram of number of events
         fig = figure('Name','# BOLD events - histogram');
@@ -453,7 +453,7 @@ for s = 1 : n_subjects
         ax = gca; ax.XGrid = 'off'; ax.YGrid = 'on'; 
         set(gca,'FontSize',16); 
         img_out = 'histo_estimated_number_events';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');  
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');  
         
         % Plot map of number of events  
         fig = figure('Name','# BOLD events - map');
@@ -465,7 +465,7 @@ for s = 1 : n_subjects
             'in the DMN, axial slice (z ='," ", num2str(zslice),')'),...
             'FontWeight','Normal'); set(gca,'FontSize',16);
         img_out = 'map_estimated_number_events';
-        saveas(gcf,fullfile(path_img_out(s),img_out),'png');      
+        saveas(gcf,fullfile(path_img_out(s, se),img_out),'png');      
         
     end
 

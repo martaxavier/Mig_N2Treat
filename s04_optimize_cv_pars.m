@@ -7,16 +7,16 @@ for m = 1 : length(metrics)
     metric = metrics(m);
     get_metric_pars;
    
-    if strcmp(reg_model,'l21_1') && n_bands == 1
+    if strcmp(reg_models,'l21_1') && n_bands == 1
         disp(strcat('CV pars wont be estimated for metric', ...
             " ", metric, ' because this metric is not', ...
             ' supported for regression model', " ", ...
-            reg_model, '...'));
+            reg_models, '...'));
         continue
     end
     
     disp(strcat('Estimating CV pars for regression model', ...
-        " ", reg_model, ', metric', " ", metric, '...'));
+        " ", reg_models, ', metric', " ", metric, '...'));
     
     % Define input ACF data 
     if strcmp(bold_shift, 'deconv')
@@ -46,21 +46,21 @@ for m = 1 : length(metrics)
     
         % Define input EEG and BOLD data, according
         % to current metric
-        eeg_in = strcat(eeg_metric,'_', ...
-            'eeg_feature','_',eeg_shift,'.txt');
+        eeg_in = strcat(eeg_metric, '_', ...
+            'eeg_feature', '_', eeg_shift, '.txt');
         bold_in = strcat('bold_processed', ...
-            '_',bold_shift,'.txt');
+            '_', bold_shift, '.txt');
 
         if contains(eeg_in,'_.')
-            eeg_in = replace(eeg_in,'_.','.');
+            eeg_in = replace(eeg_in, '_.', '.');
         end
         if contains(bold_in,'_.')
-            bold_in = replace(bold_in,'_.','.');
+            bold_in = replace(bold_in, '_.', '.');
         end
 
         % Get BOLD signal and EEG features for current subject
-        X{s} = dlmread(char(fullfile(path_eeg_in(s),eeg_in)));
-        Y{s} = dlmread(char(fullfile(path_bold_in(s),bold_in)));
+        X{s} = dlmread(char(fullfile(path_eeg_in(s), eeg_in)));
+        Y{s} = dlmread(char(fullfile(path_bold_in(s), bold_in)));
 
     end
   
@@ -71,7 +71,7 @@ for m = 1 : length(metrics)
     % ------------------------------------------------------------
 
     [best_pair, stats] = get_cv_pars(X, Y, cv_method,...
-        reg_model, order, siz_X);
+        reg_models, order, siz_X);
 
     % ------------------------------------------------------------
     % Save output matrices with optimal parameters  
@@ -81,8 +81,8 @@ for m = 1 : length(metrics)
     cv_pars.K = best_pair(1); cv_pars.V = best_pair(2);
 
     % Save matrix of best parameters for this cv method  
-    cv_pars_out = strcat(reg_model,'_',cv_method,'_',metric,'.mat');
-    save(fullfile(path_pars_out,cv_pars_out),'cv_pars');    
+    cv_pars_out = strcat(reg_models, '_', cv_method, '_', metric, '.mat');
+    save(fullfile(path_pars, cv_pars_out), 'cv_pars');    
 
 end
 
@@ -91,10 +91,10 @@ end
 %/////////////////////////////////////////////////////////////
 
 % ============================================================
-% [best_pair,stats] = get_cv_pars(X, Y, cv, reg_model, order, siz_X)       
+% [best_pair,stats] = get_cv_pars(X, Y, cv, reg_models, order, siz_X)       
 % ============================================================
 
-function [best_pair,stats] = get_cv_pars(X, Y, cv, reg_model, order, siz_X)
+function [best_pair,stats] = get_cv_pars(X, Y, cv, reg_models, order, siz_X)
 
 %   Input parameters:
 %
@@ -185,20 +185,20 @@ for p = 1 : n_pairs
             case 'regular'
                 
                 [model,~] = kfold_cv_par_v2(EEG, BOLD, ...
-                    'k', k, 'v', v, 'regress', reg_model); 
+                    'k', k, 'v', v, 'regress', reg_models); 
                 
             case 'nondep'
                 
                 [model,~] = kfold_cv_nondep_par_v3...
                     (EEG, BOLD, 'k', k, 'v', v, ...
-                    'regress', reg_model, ...
+                    'regress', reg_models, ...
                     'autocorr',order(s),'sizx',siz_X);   
                 
             case 'blocked'
                 
                 [model,~] = kfold_cv_blocked_par_v2...
                     (EEG, BOLD, 'k', k, 'v', v, ...
-                    'regress', reg_model, 'autocorr', ...
+                    'regress', reg_models, 'autocorr', ...
                     order(s), 'sizx', siz_X);    
                 
         end 
@@ -243,7 +243,7 @@ title('BIC'); xlabel('K'); ylabel('V');
 
 % Sort indices according to bic 
 [~,sortedindices] = sort(bic_avg);
-best_pair = [K(k_idxs((sortedindices(1)))),...
+best_pair = [K(k_idxs((sortedindices(1)))), ...
     V(v_idxs(sortedindices(1)))];
 
 % ------------------------------------------------------------

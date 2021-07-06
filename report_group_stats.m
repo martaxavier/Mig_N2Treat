@@ -1,8 +1,10 @@
-function [] = report_group_stats(group_stats, thresh, metric, ...
-    R, prob, pval, report, path_img_out)
+function [] = report_group_stats(group_stats, thresh_tstat, ...
+    thresh_fdr, pval_consistency, metric, R, report, path_img_out, ...
+    path_pars)
+
 %
-%   [] = report_group_stats(group_stats,thresh,metric, ...
-%        R,prob,report,path_img_out) plots and saves the 
+%   [] = report_group_stats(group_stats, thresh, metric, ...
+%        R, pval, report, path_img_out) plots and saves the 
 %        group-level tstat profiles (thresholded and
 %        unthresholded) in the form of topographic maps
 %        or bar graphs 
@@ -13,7 +15,7 @@ function [] = report_group_stats(group_stats, thresh, metric, ...
 %           thresh         the tstat threshold 
 %           metric         the current EEG-BOLD metric
 %           R              the report object 
-%           prob           the probability of topographic 
+%           prob           the pvalue of topographic 
 %                          consistency
 %           pval           the p-value of topographic consistency
 %           report         the report flag - 2, 1 or 0
@@ -26,14 +28,28 @@ import mlreportgen.report.*;
 % Get the parameters for
 % the current metric
 get_metric_pars;
+pval_consistency = reshape(pval_consistency, [dim(2) dim(3)]);
 
 % Reshape relevant statistics into feature space 
 tstat = reshape(group_stats(:,1), dim);
-decision = reshape(group_stats(:,2), dim);
 
-% Threshold tstat
-tstat_thresh = tstat;
-tstat_thresh(abs(tstat_thresh) < thresh)=0;
+if ~isempty(thresh_tstat)
+    
+    decision = reshape(group_stats(:,2), dim);
+    
+    % Threshold tstat
+    tstat_thresh = tstat;
+    tstat_thresh(abs(tstat_thresh) < thresh_tstat) = 0;  
+
+    % Write default topoplot tag
+     topo_out = 'TOPOSTAT';    
+     
+else 
+    
+    % Write default topoplot tag
+    topo_out = 'TOPO';
+
+end 
 
 % Figure settings 
 ax = gca;outerpos = ax.OuterPosition;ti = ax.TightInset; 
@@ -45,8 +61,8 @@ ax.Position = [left bottom ax_width ax_height];
 % Write default settings for topoplot
 topo_settings = {'electrodes', 'labels', ...
                 'conv', 'on', 'whitebk', ...
-                'on', 'gridscale', 300};
-topo_thresh_settings = cat(2,topo_settings, ...
+                'on', 'gridscale', 100};
+topo_thresh_settings = cat(2, topo_settings, ...
                        {'maplimits', 'absmax'});
 
 % Write default title for figures
@@ -54,10 +70,7 @@ fig_title = strcat('tstat map of group', ...
     'statistics between each EEG', ...
     'feature and the BOLD signal');
 
-% Write default topoplot tag
- topo_out = 'TOPOSTAT';
-
- if report == 1
+if report == 1
      
     % -------------------------------------------------
     % Channel profiles (at all bands for each delay)  
@@ -95,8 +108,7 @@ fig_title = strcat('tstat map of group', ...
 
         % Specify signal for plotting
         signal = squeeze(tstat(:, d));
-        signal_thresh = squeeze(tstat_thresh(:, d));
-        
+                
         % Topoplot of the unthresholded group one-sample
         % tstat for the EEG-BOLD correlation/model values
         % at each channel, delay and all bands  
@@ -107,7 +119,13 @@ fig_title = strcat('tstat map of group', ...
         % Save figure in specified output path
         img_out = strcat(metric, '_', id_delays(d), ...
             'SEC_', topo_out, '_UNTHRESH'); 
-        saveas(gcf, fullfile(path_img_out, img_out), 'png');
+        saveas(gcf, fullfile(path_img_out, img_out), 'png');        
+        
+        if isempty(thresh_tstat)
+            continue
+        end
+        
+        signal_thresh = squeeze(tstat_thresh(:, d));
 
         % Topoplot of the thresholded group one-sample
         % tstat for the EEG-BOLD correlation/model values
@@ -118,22 +136,22 @@ fig_title = strcat('tstat map of group', ...
 
         % Save figure in specified output path
         img_out = strcat(metric, '_', id_delays(d), ...
-            'SEC_', topo_out, 'THRESH', num2str(thresh)); 
+            'SEC_', topo_out, 'THRESH', num2str(thresh_tstat)); 
         saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
         % Topoplot of the group one-sample tstat, masked 
-        % with the decision map at p = 0.05 significance
+        % with the decision map at p = thresh_fdr significance
         % level, for the EEG-BOLD correlation/model values
         % at each channel, delay and all bands  
-        figure('Name', strcat('Significant (p<0.05)', ...
-            " ", fig_title));
+        figure('Name', strcat('Significant (p < ', ...
+            num2str(thresh_fdr), ')', " ", fig_title));
         topoplot(signal, chanlocs, 'pmask', ...
-            decision(:,d,1), topo_settings{:}); 
+            decision(:, d, 1), topo_settings{:}); 
         colorbar; caxis([-int_thresh int_thresh]);
 
         % Save figure in specified output path
         img_out = strcat(metric, '_', id_delays(d), ...
-            'SEC_', topo_out, '_SIGNIFICANT', num2str(0.05)); 
+            'SEC_', topo_out, '_SIGNIFICANT', num2str(thresh_fdr)); 
         saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
     end %finish looping through delays 
@@ -155,14 +173,30 @@ int = max(abs(min_int), abs(max_int));
 my_title = ["Tstat Map, Unthresholded", ...
           "Tstat Map, Thresholded (p<0.05)"];
 
-% Write topoplot tags for each t 
-topo_out = ["TOPOSTAT_UNTHRESH",...
-    "TOPOSTAT_SIGNIFICANT"];
+
+if ~isempty(thresh_tstat)
+
+    % Write topoplot tags for each t 
+    topo_out = ["TOPOSTAT_UNTHRESH",...
+        "TOPOSTAT_SIGNIFICANT"];
+    
+else 
+   
+    %Write topolot tag
+    topo_out = "TOPO";
+
+end
       
 for t = 1 : 2
     
-    H3 = get_report_heading(3, my_title(t));
-    add(R,H3);
+    if isempty(thresh_tstat) && t == 2
+        return;
+    end
+    
+    if ~isempty(thresh_tstat)
+        H3 = get_report_heading(3, my_title(t));
+        add(R,H3);
+    end
     
     % only one band
     % only one delay 
@@ -236,11 +270,10 @@ for t = 1 : 2
         for d = 1 : n_delays
             my_cap = strjoin(cat(2, my_cap, strcat(" ", ...
                 id_delays(d), ' seconds -', " ", ...
-                num2str(prob(d,1)),'%; (p-value =', ...
-                " ", num2str(pval(d,1)), ')')));
+                num2str(pval_consistency(d, 1)))));
         end
-        my_cap = strcat('Probability of',...
-            ' significance:', my_cap);
+        my_cap = strcat('p-value of',...
+            ' topographic consistency:', my_cap);
         
         img_out = strcat(metric, '_', ...
             'alldelays_', topo_out(t), '.png');
@@ -289,11 +322,10 @@ for t = 1 : 2
         for b = 1 : n_bands
             my_cap=strjoin(cat(2,my_cap, strcat(" ", ...
                 id_bands(b), ' band -'," ", ...
-                num2str(prob(1,b)), '% (p-value = ;', ...
-                " ", num2str(pval(1,b)), ')')));
+                num2str(pval_consistency(1,b)))));
         end
-        my_cap = strcat('Probability of',...
-            ' significance:', my_cap);
+        my_cap = strcat('p-value of',...
+            ' topographic consistency:', my_cap);
             
         img_out = strcat(metric, '_',...
             'allbands_', topo_out(t), '.png');
@@ -311,7 +343,7 @@ for t = 1 : 2
         % For models with more then 4,
         % bands, don't plot delta and 
         % theta correlations 
-        if n_bands > 4; b1 = 3;
+        if n_bands > 5; b1 = 3;
         else; b1 = 1; end
 
         % For the report 
@@ -355,11 +387,10 @@ for t = 1 : 2
             for d = 1 : n_delays
                 my_cap=strjoin(cat(2, my_cap, strcat(" ", ...
                     id_delays(d), ' seconds -', " ", ...
-                    num2str(prob(d,b)), '%; (p-value =', ...
-                    " ", num2str(pval(d,b)), ')')));
+                    num2str(pval_consistency(d, b)))));
             end
-            my_cap = strcat('Probability of',...
-                ' significance:', my_cap);
+            my_cap = strcat('p-value of',...
+                ' topographic consistency:', my_cap);
 
             img_out = strcat(metric, '_', ...
                 id_bands(b), '_', topo_out(t), '.png');
@@ -403,8 +434,18 @@ max_val_thresh = max(max(max(tstat_thresh)));
 max_int_thresh = max_val + 0.1*abs(max_val_thresh);
 int_thresh = max(abs(min_int_thresh), abs(max_int_thresh));
  
-% Write default topoplot tag
-topo_out = 'TOPOSTAT';
+
+if ~isempty(thresh_tstat)
+    
+    % Write default topoplot tag
+    topo_out = 'TOPOSTAT';
+    
+else 
+    
+    % Write default topoplot tag
+    topo_out = 'TOPO';
+    
+end
  
 for d = 1 : n_delays
     
@@ -412,7 +453,6 @@ for d = 1 : n_delays
         
         % Specify signal for plotting 
         signal = squeeze(tstat(:, d, b));
-        signal_thresh = squeeze(tstat_thresh(:, d, b));
         
         % Topoplot of the unthresholded group one-sample
         % tstat for the EEG-BOLD correlation/model values 
@@ -425,6 +465,13 @@ for d = 1 : n_delays
         img_out = strcat(id_bands(b), '_', ...
             id_delays(d), 'SEC_', topo_out, '_UNTHRESH'); 
         saveas(gcf,fullfile(path_img_out, img_out), 'png');
+        
+        if isempty(thresh_tstat)
+           continue; 
+        end
+        
+        % Specify signal for plotting 
+        signal_thresh = squeeze(tstat_thresh(:, d, b));
 
         % Topoplot of the thresholded group one-sample 
         % tstat for the EEG-BOLD correlation/model values
@@ -435,14 +482,15 @@ for d = 1 : n_delays
 
         % Save figure in specified output path
         img_out = strcat(id_bands(b), '_', id_delays(d),...
-            'SEC_', topo_out, '_THRESH', num2str(thresh)); 
+            'SEC_', topo_out, '_THRESH', num2str(thresh_tstat)); 
         saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
         % Topoplot of the group one-sample tstat, masked
         % with the decision map at p = 0.05 significance
         % level, for the EEG-BOLD correlation/model values
         % at each channel, delay and band 
-        figure('Name', strcat('Significant (p<0.05)', " ", fig_title));
+        figure('Name', strcat('Significant (p < ', " ",...
+            num2str(thresh_fdr), ')', " ", fig_title));
         topoplot(signal, chanlocs, 'pmask', ...
             decision(:, d, b), topo_settings{:});
         colorbar; caxis([-int_thresh int_thresh]);

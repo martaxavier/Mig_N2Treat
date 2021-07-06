@@ -3,16 +3,16 @@
 %------------------------------------------------------------
         
 for s = 1 : length(subjects)
-    
+           
     % Load eeg dataset of specified subject 
-    load(fullfile(path_data_in(s),data_in));
+    load(fullfile(path_data_in(s, se), data_in));
 
     % Define current subject 
     subject = subjects(s);
     
     % Create output directories if non existent 
-    if ~exist(path_data_eeg_out(s), 'dir')
-        mkdir(path_data_eeg_out(s));
+    if ~exist(path_data_eeg_out(s, se), 'dir')
+        mkdir(path_data_eeg_out(s, se));
     end
     if ~exist(path_data_bold_out, 'dir')
         mkdir(path_data_bold_out); 
@@ -21,12 +21,6 @@ for s = 1 : length(subjects)
     disp(strcat('Extracting EEG markers', ...
         ' for subject'," ", subject, ' ...'));
     
-    % Switch order of the channels and save it again
-    load('Mig_N2Treat\PARS\chanlocs.mat');
-    labels = chanlocs.labels;
-    EEG = EEGCAP;
-    labels_sub = EEG.chanlocs.labels;
- 
     %---------------------------------------------------------    
     % Extract information from EEG event struct 
     %---------------------------------------------------------
@@ -40,13 +34,13 @@ for s = 1 : length(subjects)
     type = event(1,:,:); type = squeeze(type);
     latency = event(2,:,:); latency=squeeze(latency);
     latency = cell2mat(latency);
-
+    
     % Find EEG sample that corresponds to the beginning 
     % (first_eeg) and end (last_eeg) of the simultaneous 
     % BOLD acquisition 
-    idxs_scan = find(ismember(type,markers_task));
+    idxs_scan = find(ismember(type, markers_task));
     
-    % For the NODDI dataset, remove 5 first scans 
+    % For the NODDI dataset, remove dummy scans 
     if strcmp(dataset, 'NODDI')
         idxs_scan(1 : 5) = [];
     end
@@ -82,12 +76,12 @@ for s = 1 : length(subjects)
 
         % No sub-task should start or stop outside
         % the limits defined for the task 
-        sub_task_stop_eeg(sub_task_stop_eeg< ...
-            sub_task_start_eeg(1))=[];
-        sub_task_start_eeg(sub_task_start_eeg>...
-            min(task_stop_eeg))=[];
-        sub_task_stop_eeg(sub_task_stop_eeg>...
-            min(task_stop_eeg))=[];
+        sub_task_stop_eeg(sub_task_stop_eeg < ...
+            sub_task_start_eeg(1)) = [];
+        sub_task_start_eeg(sub_task_start_eeg >...
+            min(task_stop_eeg)) = [];
+        sub_task_stop_eeg(sub_task_stop_eeg >...
+            min(task_stop_eeg)) = [];
 
         % Now we must replace each of the sub-task start and
         % stop samples by the scan samples closest to them 
@@ -116,18 +110,18 @@ for s = 1 : length(subjects)
         % Define a 'sub_task_design' matrix that is one for the 
         % samples that belong to the current sub-task, and zero 
         % for the samples that don't
-        design_table_eeg = cat(2,sub_task_start_eeg, ...
-            ones(n_sub_task_start_eeg,1));
-        design_table_eeg = cat(1,design_table_eeg, ...
-            cat(2,sub_task_stop_eeg, zeros(n_sub_task_stop_eeg,1)));
+        design_table_eeg = cat(2, sub_task_start_eeg, ...
+            ones(n_sub_task_start_eeg, 1));
+        design_table_eeg = cat(1, design_table_eeg, ...
+            cat(2, sub_task_stop_eeg, zeros(n_sub_task_stop_eeg, 1)));
 
-        [~,order] = sort(design_table_eeg(:,1));
-        design_table_eeg = design_table_eeg(order,:);
-        n_markers = size(design_table_eeg,1);
+        [~,order] = sort(design_table_eeg(:, 1));
+        design_table_eeg = design_table_eeg(order, :);
+        n_markers = size(design_table_eeg, 1);
         
         % Gain 1 TR per discontinuity (because upsampling/
         % downsampling is not additive)
-        disc = find(diff(design_table_eeg(:,2))== - 1) + 1;
+        disc = find(diff(design_table_eeg(:,2)) == - 1) + 1;
         design_table_eeg(disc) = design_table_eeg(disc) + ...
             mean(diff(scan_eeg));
         
@@ -135,13 +129,13 @@ for s = 1 : length(subjects)
 
         for m = 1 : n_markers
 
-            marker_start = design_table_eeg(m,1);
+            marker_start = design_table_eeg(m, 1);
 
             if m == n_markers; marker_stop = n_pnts;
-            else;marker_stop = design_table_eeg(m+1,1)-1;end
+            else; marker_stop = design_table_eeg( m + 1, 1) - 1; end
 
-            marker_value = design_table_eeg(m,2);
-            sub_task_design(marker_start:marker_stop) = marker_value;
+            marker_value = design_table_eeg(m, 2);
+            sub_task_design(marker_start : marker_stop) = marker_value;
 
         end
 
@@ -158,38 +152,38 @@ for s = 1 : length(subjects)
         % task ends 
         if sub_task_order == 1
             design_table_bold = cat...
-                (2,design_table_bold,last_bold);
+                (2, design_table_bold, last_bold);
         else
             last_bold = sub_task_stop_bold(end);
         end     
         last_eeg = scan_eeg(last_bold);
         
         % Write the subject task timing file for the EEG time-series
-        dlmwrite(fullfile(path_data_eeg_out(s), ...
-            data_eeg_sub_task_out),sub_task_design);
+        dlmwrite(fullfile(path_data_eeg_out(s, se), ...
+            data_eeg_sub_task_out), sub_task_design);
         
         % Check if a timing file already exist and 
         % open one in case it doesn't
         if ~exist(fullfile(path_data_bold_out, ...
                 data_bold_out), 'file')
         	fid = fopen(fullfile(path_data_bold_out, ...
-                data_bold_out),'w');
+                data_bold_out), 'w');
         end
         
         % Don't generate file if already generated 
         if exist('fid','var')
-            label = strcat(sub_task,'_',subject);
-            fprintf(fid,'%s ',label);
-            fprintf(fid,'%d ',design_table_bold); fprintf(fid,'\n');
+            label = strcat(sub_task, '_', subject);
+            fprintf(fid,'%s ', label);
+            fprintf(fid,'%d ', design_table_bold); fprintf(fid, '\n');
         end
         
      end
      
      % Write the timing file for the EEG time-series
      first_last_eeg = [first_eeg last_eeg];
-     dlmwrite(fullfile(path_data_eeg_out(s), ...
-         data_eeg_out),first_last_eeg);
-     
+     dlmwrite(fullfile(path_data_eeg_out(s, se), ...
+         data_eeg_out), first_last_eeg);
+          
 end
 
 fclose('all');

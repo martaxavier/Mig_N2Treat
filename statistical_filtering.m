@@ -2,12 +2,12 @@ function [conspec_sig, decision, p_values, p_thresh_corrected] = ...
     statistical_filtering(data, f_range, n_freq, f_vector, ...
     tf_sliding_win_seconds, fs_data, fs_cspec, metric, ...
     conspec, p_values, stat_filt_method, surr_method, ...
-    n_surrs, path_img_out)
+    n_surrs, path_img_out, path_pars)
 
 % Define some parameters 
 % for the surrogate analysis 
 win_cut_seconds = 10;
-p_thresh_filt = 0.05;
+thresh_fdr = 0.05;
 
 % Get metric parameters
 get_metric_pars
@@ -112,7 +112,7 @@ end
 % Correct for multiple comparisons, using the 
 % FDR correction 
 [decision, p_thresh_corrected, ~, ~] = ...
-    fdr_bh(p_values, p_thresh_filt, 'pdep', 'no');
+    fdr_bh(p_values, thresh_fdr, 'pdep', 'no');
 disp(size(p_values)); disp(p_thresh_corrected);
 
 % Set to zero connectivity values that 
@@ -128,10 +128,83 @@ end
 
 % Check that phase and amplitude dynamics 
 % are preserved in the surrogates generated 
-data_surr_X = fft(data);
+data_surr_X = fft(data_surr);
 data_X = fft(data);
 
-% Check if the phase distribution is preserved
+% Check differences/similiarities between both 
+% power spectral densities (should be similar)
+% Do it for an example surrogate 
+[alpha, f_vector_wav, wavelet_cf_surr, power_surr] = ...
+    tf_power_spectrum_wavelet(data_surr(10, :, 50)', ...
+    f_range, 100, 2, fs_data, 0);
+[~, ~, wavelet_cf, power] = ...
+    tf_power_spectrum_wavelet(data(10, :)', ...
+    f_range, 100, 2, fs_data, 0);
+
+% Colorscale
+Dtf_f_surr = log(abs(wavelet_cf_surr) + .001); 
+Dtf_f = log(abs(wavelet_cf) + .001); 
+
+figure('Name', 'Example TF Analysis')
+subplot(2, 1, 1)
+imagesc((1 : size(power, 1)) ./ fs, ...
+    1: 100, squeeze(Dtf_f));
+Fplot = (log([1 2 5 8 13 20 30 45 50 70 90]) - ...
+    log(f_vector_wav(1))) ./ log(1 + alpha) + 2;
+hold on; plot([1 n_pnts], [Fplot', Fplot'], 'k'); hold off
+set(gca, 'YTick', Fplot)
+set(gca, 'YTickLabel', [1 2 5 8 13 20 30 45 50 70 90], 'FontSize', 12)
+ylabel('Frequency (Hz)', 'FontSize', 26);
+xlabel('Time (s)', 'FontSize', 26); title('Original', 'FontSize', 26);
+colorbar;
+
+subplot(2, 1, 2)
+imagesc((1 : size(power_surr, 1)) ./ fs, ...
+    1 : 100, squeeze(Dtf_f_surr));
+Fplot = (log([1 2 5 8 13 20 30 45 50 70 90]) - ...
+    log(f_vector_wav(1))) ./ log(1 + alpha) + 2;
+hold on; plot([1 n_pnts],[Fplot', Fplot'],'k'); hold off
+set(gca,'YTick',Fplot)
+set(gca,'YTickLabel', [1 2 5 8 13 20 30 45 50 70 90],'FontSize',12)
+ylabel('Frequency (Hz)','FontSize', 26);
+xlabel('Time (s)','FontSize', 26); title('Surrogate','FontSize', 26);
+colorbar;
+img_out = strcat(upper(metric),'_TF_analysis_surr.png'); 
+saveas(gcf, fullfile(path_img_out, img_out));
+
+% Check differences/similarities betweeen both 
+% time-series (should be different)
+% Do it for an example surrogate 
+figure('Name', 'Example time-series');
+subplot(2, 1, 1);
+plot((1 : size(power, 1)) ./ fs, data(10, :));
+axis tight; grid minor;
+title('Original', 'FontSize', 16); 
+xlabel('Time (s)', 'FontSize', 26) 
+ylabel('Amplitude (\muV)', 'FontSize', 26);
+
+subplot(2, 1, 2);
+plot((1 : size(power, 1)) ./ fs, data_surr_par(10, :));
+axis tight; grid minor;
+title('Surrogate', 'FontSize', 16); 
+xlabel('Time (s)', 'FontSize', 26) 
+ylabel('Amplitude (\muV)', 'FontSize', 26);
+img_out = strcat(upper(metric), '_time_series_surr.png'); 
+saveas(gcf, fullfile(path_img_out, img_out));
+
+% Check the differences in distribution of 
+% connectivity (Icoh) values 
+figure('Name', 'Distribution of Icoh values');
+subplot(1, 2, 1); histogram(conspec);
+title('Original data'); xlabel('Connectivity (Icoh)');
+subplot(1, 2, 2); histogram(conspec_surr);  
+title('Surrogate data'); xlabel('Connectivity (Icoh)');
+img_out = strcat(upper(metric), '_con_dist_surr.png'); 
+saveas(gcf, fullfile(path_img_out, img_out));
+
+% Check the differences in distribution of phase 
+% values - surrogate phase values should be uniformly
+% distributed if function rand was used in its generation 
 figure('Name', 'Distribution of data phase');
 subplot(1, 2, 1); histogram(angle(data_X));
 title('Original data'); xlabel('Phase (rad)');
@@ -166,6 +239,24 @@ subplot(1, 2, 2); histogram(std(data_surr, 0, 2));
 title('Surrogate data');  xlabel('Std');
 img_out = strcat(upper(metric),'_std_dist_surr.png'); 
 saveas(gcf, fullfile(path_img_out, img_out));
+
+% Check differences/similarities between the periodograms 
+% data_surr_X = data_surr_X(:, 1 : n_pnts/2 + 1, :);
+% data_X = data_X(:, 1 : n_pnts/2 + 1);
+% psdx_data_surr = ( 1/(fs_data*n_pnts) ) * abs(data_surr_X).^2;
+% psdx_data_surr(2 : end-1) = 2*psdx_data_surr(2 : end-1);
+% psdx_data = ( 1/(fs_data*n_pnts) ) * abs(data_X).^2;
+% psdx_data(2 : end-1) = 2*psdx_data(2 : end-1);
+% freq = 0 : fs_data/n_pnts : fs_data/2;
+% figure('Name', 'Example Periodogram using FFT');
+% plot(freq, 10*log10(psdx_data(10, :))); hold on
+% plot(freq, 10*log10(psdx_data_surr(10, :, 50))); grid on
+% title('Example Periodogram using FFT')
+% xlabel('Frequency (Hz)')
+% ylabel('Power/Frequency (dB/Hz)')
+% legend('Original', 'Surrogate');
+% img_out = strcat(upper(metric),'_periodogram_surr.png'); 
+% saveas(gcf, fullfile(path_img_out, img_out));
 
 end
         

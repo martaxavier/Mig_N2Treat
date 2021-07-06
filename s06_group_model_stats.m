@@ -110,7 +110,7 @@ for m = 1 : n_metrics
     % Perform the topographic consistency test
     [prob_consistency, pval_consistency, ~] = ...
         test_topo_consistency...
-        (cell2mat(subj_stats(m,1)), metric, n_rand);
+        (cell2mat(subj_stats(m,1)), metric, n_rand, path_pars);
     
         
     % Add metric heading
@@ -130,11 +130,11 @@ for m = 1 : n_metrics
                     
         report_group_stats(group_stats,...
             thresh_model, metric, R, prob_consistency, ...
-            pval_consistency, flag.report, path_img_metric_out);
+            pval_consistency, flag.report, path_img_metric_out, path_pars);
         
         report_group_models(cell2mat(subj_stats(m,1)), ...
             metric, R, prob_consistency, pval_consistency, ...
-            path_img_metric_out)
+            path_img_metric_out, path_pars)
 
     end
     

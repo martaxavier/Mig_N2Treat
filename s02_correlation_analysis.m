@@ -9,8 +9,9 @@ iptgetpref('ImshowInitialMagnification');
 % Create a title for the report
 if flag.report ~=0
 
-    my_title = 'CORRELATION ANALYSIS';
-    H1 = get_report_heading(1,my_title);
+    my_title = strcat('CORRELATION ANALYSIS -', ...
+        " ", session);
+    H1 = get_report_heading(1, my_title);
     add(R,H1)
     
 end
@@ -22,7 +23,7 @@ n_metrics = length(metrics);
 % Go through metrics
 % ------------------------------------------------------------
 
-subj_stats = cell(n_metrics,2); % first column rho
+subj_stats = cell(n_metrics, 2); % first column rho
                                 % second column pval
                                 
 for m = 1 : n_metrics
@@ -32,20 +33,20 @@ for m = 1 : n_metrics
 
     % Define input EEG and BOLD data, according
     % to current metric
-    eeg_in = strcat(eeg_metric,'_', ...
-        'eeg_feature','_',eeg_shift,'.txt');
-    bold_in = strcat('bold_processed', ...
-    '_',bold_shift,'.txt');
-    if contains(eeg_in,'_.'); eeg_in = ...
-            replace(eeg_in,'_.','.'); end
-    if contains(bold_in,'_.'); bold_in = ...
-            replace(bold_in,'_.','.'); end
+    eeg_in = strcat(eeg_metric, '_', ...
+        'eeg_feature', '_', eeg_shift, '.txt');
+    bold_in = strcat('bold_preproc', ...
+    '_', bold_shift, '.txt');
+    if contains(eeg_in, '_.'); eeg_in = ...
+            replace(eeg_in, '_.', '.'); end
+    if contains(bold_in, '_.'); bold_in = ...
+            replace(bold_in, '_.', '.'); end
     
     % Load matrix containing the optimal 
     % delay for the BOLD deconvolution 
     % of each subject
-    if strcmp(bold_shift,'deconv')
-        load(fullfile(path_pars_in, ...
+    if strcmp(bold_shift, 'deconv')
+        load(fullfile(path_pars, ...
             'deconv_delay.mat'));
     end
     
@@ -55,8 +56,8 @@ for m = 1 : n_metrics
     if flag.report ~= 0
         
         my_title = upper(metric);
-        H2 = get_report_heading(2,my_title);
-        add(R,H2)
+        H2 = get_report_heading(2, my_title);
+        add(R, H2)
 
     end
 
@@ -69,54 +70,55 @@ for m = 1 : n_metrics
         subject = subjects(s);
         
         disp(strcat('Performing correlation analysis for', ...
-            " ", subject,', metric'," ", metric, ' ...'));
-
+            " ", subject, ', metric', " ", metric, ' ...'));
+        
         % Create output directories for 
         % current subject, if non existent
-        if ~exist(path_data_out(s), 'dir')
-            mkdir(path_data_out(s));
+        if ~exist(path_data_out(s, se), 'dir')
+            mkdir(path_data_out(s, se));
         end
-        if ~exist(path_img_out(s), 'dir')
-            mkdir(path_img_out(s));
+        if ~exist(path_img_out(s, se), 'dir')
+            mkdir(path_img_out(s, se));
         end      
 
         % Add subject title to the report 
         if flag.report ~= 0 
 
             my_title = subject;
-            H3 = get_report_heading(3,my_title);
-            add(R,H3)
+            H3 = get_report_heading(3, my_title);
+            add(R, H3)
         
         end
 
         % Load input EEG and BOLD data 
-        eeg=dlmread(fullfile(path_eeg_in(s),eeg_in));
-        bold=dlmread(fullfile(path_bold_in(s),bold_in));
+        eeg = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
+        bold = dlmread(fullfile(path_bold_in(s, se), bold_in));
         
         % Save estimated deconvolution 
         % delay for current subject 
         % (when applicable)
         deconv_delay = [];
-        if strcmp(bold_shift,'deconv')
+        if strcmp(bold_shift, 'deconv')
             deconv_delay = ...
-                table2array(deconv_delay(s,2));
+                table2array(deconv_delay(s, 2));
         end
         
         % Perform correlation analysis for the 
         % current subject 
-        stats = perform_corr_analysis(eeg,bold);
+        stats = perform_corr_analysis(eeg, bold);
         
         % Save results of correlation analysis for 
         % for the current subject and metric 
-        corr_out = strcat(metric,'_',data_out);
-        save(fullfile(path_data_out(s),corr_out),'stats');     
+        corr_out = strcat(metric, '_', data_out);
+        save(fullfile(path_data_out(s, se), corr_out), 'stats');     
 
         % Generate and save plots of the result
         % of correlation analysis
          if flag.report ~= 0
              
-             plot_corr_stats(stats.rho,metric,R,...
-                 deconv_delay,flag.report,path_img_out(s));
+             plot_corr_stats(stats.rho, metric, R, ...
+                 deconv_delay, flag.report, ...
+                 path_img_out(s, se), path_pars, subject);
              
          end
 
@@ -154,7 +156,7 @@ function [stats] = perform_corr_analysis(EEG,BOLD)
 
 % If Y is a row vector, 
 % convert to a column vector
-if size(BOLD,1) == 1
+if size(BOLD, 1) == 1
     BOLD = BOLD';
 end
 
@@ -170,11 +172,7 @@ end
 % against the alternative hypothesis of a
 % nonzero correlation
 
-% if length(BOLD) ~= size(EEG,1)
-%     paddsize = length(BOLD) - size(EEG,1);
-%     EEG = padarray(EEG,paddsize,'symmetric','post');
-% end
-[rho,pval] = corr(EEG,BOLD);
+[rho, pval] = corr(EEG, BOLD);
 
 % Prepare output
 stats.rho = rho;
@@ -186,8 +184,8 @@ end
 % plot_corr_stats(rho,metric,R,deconv_delay,report,path_img_out)          
 % ============================================================
 
-function [] = plot_corr_stats(rho,metric,R,deconv_delay, ...
-    report,path_img_out)
+function [] = plot_corr_stats(rho, metric, R, deconv_delay, ...
+    report, path_img_out, path_pars, subject)
 %
 %   [] = plot_corr_stats(rho,metric,R,deconv_delay,report,
 %   path_img_out) plots and saves subject-level correlation
@@ -210,7 +208,7 @@ get_metric_pars;
 
 % Reshape rho into feature
 % dimension space
-rho = reshape(rho,dim);
+rho = reshape(rho, dim);
 
 % Figure settings 
 ax = gca;outerpos = ax.OuterPosition;
@@ -222,8 +220,8 @@ ax_height = outerpos(4) - ti(2) - ti(4);
 ax.Position = [left bottom ax_width ax_height];
 
 % Write default settings for topoplot
-topo_settings = {'electrodes','labels', ...
-    'whitebk','on','gridscale',300};
+topo_settings = {'electrodes', 'labels', ...
+    'whitebk', 'on', 'gridscale', 100};
 
 % Write default title for figures
 fig_title = strcat('Correlation values between', ...
@@ -241,9 +239,9 @@ if report == 1
 
     % Specify signals for plotting 
     signal = squeeze(mean(reshape(rho, ...
-        [n_chans,n_delays*n_bands]),2));
+        [n_chans,n_delays*n_bands]), 2));
     signal_abs = squeeze(mean(reshape(abs(rho), ...
-        [n_chans,n_delays*n_bands]),2));
+        [n_chans,n_delays*n_bands]), 2));
 
     % Minimum and maximum intensity values 
     min_val = min(signal);
@@ -253,13 +251,13 @@ if report == 1
 
     % Topoplot of the correlation between EEG features and the
     % BOLD signal, averaged at each channel location 
-    figure('Name',strcat(fig_title,'averaged at each channel')); 
-    topoplot(signal,chanlocs,topo_settings{:}); 
+    figure('Name', strcat(fig_title, 'averaged at each channel')); 
+    topoplot(signal, chanlocs, topo_settings{:}); 
     colorbar; caxis([min_int max_int]);    
 
     % Save figure in specified output path
-    img_out = strcat(upper(metric),'_',topo_out);
-    saveas(gcf,fullfile(path_img_out,img_out),'png');
+    img_out = strcat(upper(metric), '_', topo_out);
+    saveas(gcf,fullfile(path_img_out, img_out), 'png');
 
     % Maximum intensity values
     max_abs_val = max(signal_abs);
@@ -269,12 +267,12 @@ if report == 1
     % between EEG features and the BOLD signal, averaged
     figure('Name',strcat('Absolute'," ", fig_title, ...
         ' averaged at each channel')); 
-    topoplot(signal_abs,chanlocs,topo_settings{:}); 
+    topoplot(signal_abs, chanlocs, topo_settings{:}); 
     colorbar; caxis([0 max_abs_int]);    
 
     % Save figure in specified output path
-    img_out = strcat(upper(metric),'_',topo_out,'_ABS'); 
-    saveas(gcf,fullfile(path_img_out,img_out),'png');
+    img_out = strcat(upper(metric), '_', topo_out, '_ABS'); 
+    saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
     % -------------------------------------------------
     % Channel profiles (at all delays for each band)  
@@ -287,7 +285,7 @@ if report == 1
     max_val = max(max(squeeze(mean(rho,2))));
     max_int = max_val + 0.1*abs(max_val);
 
-    max_abs_val = max(max(squeeze(mean(abs(rho),2))));
+    max_abs_val = max(max(squeeze(mean(abs(rho), 2))));
     max_abs_int = max_abs_val + 0.1*abs(max_abs_val);
 
     for b = 1 : n_bands
@@ -297,33 +295,33 @@ if report == 1
         end
 
         % Specify signals for plotting 
-        signal = squeeze(mean(rho(:,:,b),2));
-        signal_abs = squeeze(mean(abs(rho(:,:,b)),2));
+        signal = squeeze(mean(rho(:, :, b), 2));
+        signal_abs = squeeze(mean(abs(rho(:, :, b)), 2));
 
         % Topoplot of the correlation between EEG features 
         % and the BOLD signal, averaged at each channel, 
         % at each band 
         figure('Name',strcat(fig_title, ...
             ' averaged at each channel, at each band'));
-        topoplot(signal,chanlocs,topo_settings{:}); 
+        topoplot(signal, chanlocs, topo_settings{:}); 
         colorbar; caxis([min_int max_int]);    
 
         % Save figure in specified output path
-        img_out = strcat(id_bands(b),bold_shift,'_',topo_out); 
-        saveas(gcf,fullfile(path_img_out,img_out),'png');
+        img_out = strcat(id_bands(b), bold_shift, '_', topo_out); 
+        saveas(gcf,fullfile(path_img_out, img_out), 'png');
 
         % Topoplot of the absolute value of the correlation
         % between EEG features and the BOLD signal, averaged
         % at each channel location, at each band  
-        figure('Name',strcat('Absolute'," ", fig_title, ...
+        figure('Name', strcat('Absolute', " ", fig_title, ...
             ' averaged at each channel, at each band'));
-        topoplot(signal_abs,chanlocs,topo_settings{:}); 
+        topoplot(signal_abs, chanlocs, topo_settings{:}); 
         colorbar; caxis([0 max_abs_int]);    
 
         % Save figure in specified output path
-        img_out = strcat(id_bands(b),bold_shift, ...
-            '_',topo_out,'_ABS'); 
-        saveas(gcf,fullfile(path_img_out,img_out),'png');
+        img_out = strcat(id_bands(b), bold_shift, ...
+            '_', topo_out, '_ABS'); 
+        saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
     end % finish looping through bands 
 
@@ -333,12 +331,12 @@ if report == 1
 
     % Minimum and maximum intensity values 
     % Choose limits for all delays 
-    min_val = min(min(squeeze(mean(rho,3))));
+    min_val = min(min(squeeze(mean(rho, 3))));
     min_int = min_val - 0.1*abs(min_val);
-    max_val = max(max(squeeze(mean(rho,3))));
+    max_val = max(max(squeeze(mean(rho, 3))));
     max_int = max_val + 0.1*abs(max_val);
 
-    max_abs_val = max(max(squeeze(mean(abs(rho),3))));
+    max_abs_val = max(max(squeeze(mean(abs(rho), 3))));
     max_abs_int = max_abs_val + 0.1*abs(max_abs_val);
 
     for d = 1 : n_delays
@@ -348,21 +346,21 @@ if report == 1
         end
 
         % Specify signals for plotting 
-        signal = squeeze(mean(squeeze(rho(:,d,:)),2));
-        signal_abs = squeeze(mean(squeeze(abs(rho(:,d,:))),2));
+        signal = squeeze(mean(squeeze(rho(:, d, :)), 2));
+        signal_abs = squeeze(mean(squeeze(abs(rho(:, d, :))), 2));
 
         % Topoplot of the correlation between EEG features 
         % and the BOLD signal, averaged at each channel,
         % at each delay 
         figure('Name',strcat(fig_title, ...
             ' averaged at each channel, at each delay')); 
-        topoplot(signal,chanlocs,topo_settings{:}); 
+        topoplot(signal, chanlocs, topo_settings{:}); 
         colorbar; caxis([min_int max_int]); 
 
         % Save figure in specified output path
-        img_out = strcat(upper(metric),'_', ...
-            id_delays(d),'SEC_',topo_out); 
-        saveas(gcf,fullfile(path_img_out,img_out),'png');
+        img_out = strcat(upper(metric), '_', ...
+            id_delays(d), 'SEC_', topo_out); 
+        saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
         if n_bands == 1
             continue
@@ -371,15 +369,15 @@ if report == 1
         % Topoplot of the absolute value of the correlation
         % between EEG features and the BOLD signal, averaged
         % at each channel location, at each delay  
-        figure('Name',strcat('Absolute', " ",fig_title, ...
+        figure('Name',strcat('Absolute', " ", fig_title, ...
             ' averaged at each channel, at each delay'));
-        topoplot(signal_abs,chanlocs,topo_settings{:}); 
+        topoplot(signal_abs, chanlocs, topo_settings{:}); 
         colorbar; caxis([0 max_abs_int]);       
 
         % Save figure in specified output path
-        img_out = strcat(upper(metric),'_', ...
-            id_delays(d),'SEC_',topo_out,'_ABS'); 
-        saveas(gcf,fullfile(path_img_out,img_out),'png');
+        img_out = strcat(upper(metric), '_', ...
+            id_delays(d), 'SEC_', topo_out, '_ABS'); 
+        saveas(gcf, fullfile(path_img_out, img_out), 'png');
 
     end %finish looping through delays 
 
@@ -399,14 +397,14 @@ max_int = max_val + 0.1*abs(max_val);
 % only one delay 
 if n_bands == 1 && n_delays == 1
     
-    img_out = strcat(upper(metric),'_',topo_out,'.png');
-    source = fullfile(path_img_out,img_out);
+    img_out = strcat(upper(metric),'_', topo_out, '.png');
+    source = fullfile(path_img_out, img_out);
     I = FormalImage(source);
     I.ScaleToFit=true; 
     
     if contains(metric,'deconv')
         caps = strcat('Time-to-Peak of estimated',...
-            ' HRF:'," ",num2str(deconv_delay),' seconds.');
+            ' HRF:', " ", num2str(deconv_delay), ' seconds.');
         I.Caption = caps;
     end
     add(R,I); 
@@ -421,8 +419,8 @@ elseif n_bands == 1
     subp_cols = n_delays/subp_rows;
     
     % Create title for current band 
-    H4 = get_report_heading(4,id_bands);
-    add(R,H4);
+    H4 = get_report_heading(4, id_bands);
+    add(R, H4);
 
     % Create figure
     % current band 
@@ -434,21 +432,21 @@ elseif n_bands == 1
     for d = 1 : n_delays
 
         % Specify signal for plotting 
-        signal = squeeze(rho(:,d,1));
+        signal = squeeze(rho(:, d, 1));
 
         % Plots for the report 
-        subplot(subp_rows,subp_cols,d);
-        title(strcat(id_delays(d),' SECONDS'));
-        topoplot(signal,chanlocs,topo_settings{:}); 
+        subplot(subp_rows, subp_cols, d);
+        title(strcat(id_delays(d), ' SECONDS'));
+        topoplot(signal, chanlocs, topo_settings{:}); 
         colorbar; caxis([min_int max_int]);  
 
     end % finish looping through delays
 
-    img_out = strcat(upper(metric),'_',...
-        'alldelays_',topo_out,'.png');
-    source = fullfile(path_img_out,img_out);
-    saveas(fig,source); I = FormalImage(source);
-    I.ScaleToFit=true; add(R,I);    
+    img_out = strcat(upper(metric), '_', ...
+        'alldelays_', topo_out, '.png');
+    source = fullfile(path_img_out, img_out);
+    saveas(fig, source); I = FormalImage(source);
+    I.ScaleToFit=true; add(R, I);    
     
 % only one delay
 % many bands 
@@ -468,28 +466,28 @@ elseif n_delays == 1
     for b = 1 : n_bands
         
         % Specify signal for plotting 
-        signal = squeeze(rho(:,1,b));
+        signal = squeeze(rho(:, 1, b));
 
         % Plots for the report 
-        subplot(subp_rows,subp_cols,b);
+        subplot(subp_rows, subp_cols, b);
         title(upper(id_bands(b)));
-        topoplot(signal,chanlocs,topo_settings{:}); 
+        topoplot(signal, chanlocs, topo_settings{:}); 
         colorbar; caxis([min_int max_int]); 
         
     end
     
-    img_out = strcat(upper(metric),'_',...
-        'allbands_',topo_out,'.png');
-    source = fullfile(path_img_out,img_out);
-    saveas(fig,source); I = FormalImage(source);
+    img_out = strcat(upper(metric), '_', ...
+        'allbands_', topo_out, '.png');
+    source = fullfile(path_img_out, img_out);
+    saveas(fig, source); I = FormalImage(source);
         
     if contains(metric,'deconv')
-        caps = strcat('Time-to-Peak of estimated',...
-            ' HRF:'," ",num2str(deconv_delay),' seconds.');
+        caps = strcat('Time-to-Peak of estimated', ...
+            ' HRF:', " ", num2str(deconv_delay), ' seconds.');
         I.Caption = caps;
     end
     
-    I.ScaleToFit=true; add(R,I);
+    I.ScaleToFit=true; add(R, I);
    
 % many delays
 % many bands 
@@ -499,7 +497,7 @@ else
     % For models with more then 4,
     % bands, don't plot delta and 
     % theta correlations 
-    if n_bands > 4; b1 = 3;
+    if n_bands > 5; b1 = 3;
     else; b1 = 1; end
     
     % For the report 
@@ -509,8 +507,8 @@ else
     for b = b1 : n_bands
 
         % Create title for current band 
-        H4 = get_report_heading(4,id_bands(b));
-        add(R,H4);
+        H4 = get_report_heading(4, upper(id_bands(b)));
+        add(R, H4);
 
         % Create figure
         % current band 
@@ -522,21 +520,21 @@ else
         for d = 1 : n_delays
 
             % Specify signal for plotting 
-            signal = squeeze(rho(:,d,b));
+            signal = squeeze(rho(:, d, b));
 
             % Plots for the report 
-            subplot(subp_rows,subp_cols,d);
-            title(strcat(id_delays(d),' SECONDS'));
-            topoplot(signal,chanlocs,topo_settings{:}); 
+            subplot(subp_rows, subp_cols, d);
+            title(strcat(id_delays(d), ' SECONDS'));
+            topoplot(signal, chanlocs, topo_settings{:}); 
             colorbar; caxis([min_int max_int]);  
 
         end % finish looping through delays
 
-        img_out = strcat(upper(metric),'_',...
-            id_bands(b),'_',topo_out,'.png');
-        source = fullfile(path_img_out,img_out);
-        saveas(fig,source); I = FormalImage(source);
-        I.ScaleToFit=true; add(R,I);
+        img_out = strcat(upper(metric), '_', ...
+            id_bands(b), '_', topo_out, '.png');
+        source = fullfile(path_img_out, img_out);
+        saveas(fig, source); I = FormalImage(source);
+        I.ScaleToFit=true; add(R, I);
 
     end % finish looping through bands     
     
@@ -567,20 +565,20 @@ for d = 1 : n_delays
     for b = 1 : n_bands  
         
         % Specify signal for plotting 
-        signal = squeeze(rho(:,d,b));
+        signal = squeeze(rho(:, d, b));
         
         % Topoplot of the correlation between EEG features
         % and the BOLD signal, averaged at each channel,
         % at each delay-band pair  
-        figure('Name',strcat(fig_title, ...
+        figure('Name', strcat(fig_title, ...
             ' at each channel, at each delay and band')); 
-        topoplot(signal,chanlocs,topo_settings{:}); 
+        topoplot(signal, chanlocs, topo_settings{:}); 
         colorbar; caxis([min_int max_int]);    
 
         % Save figure in specified output path
-        img_out = strcat(id_bands(b),'_', ...
-            id_delays(d),'SEC_',topo_out); 
-        saveas(gcf,fullfile(path_img_out,img_out),'png');
+        img_out = strcat(id_bands(b), '_', ...
+            id_delays(d), 'SEC_', topo_out); 
+        saveas(gcf, fullfile(path_img_out, img_out), 'png');
     
     end % finish looping through bands
     

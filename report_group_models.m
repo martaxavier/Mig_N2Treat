@@ -1,9 +1,9 @@
 function [] = report_group_models(group_efp, metric, ...
-    R, prob, pval, path_img_out)
+    R, prob, pval, path_img_out, path_pars)
 
 %
-%   [] = report_group_models(group_models,metric, ...
-%        R,prob,report,path_img_out) plots and saves the 
+%   [] = report_group_models(group_models, metric, ...
+%        R, prob, report, path_img_out) plots and saves the 
 %        group-level tstat profiles (thresholded and
 %        unthresholded) in the form of topographic maps
 %        or bar graphs 
@@ -43,7 +43,7 @@ ax.Position = [left bottom ax_width ax_height];
 % Write default settings for topoplot
 topo_settings = {'electrodes', 'labels', ...
                 'conv', 'on', 'whitebk', ...
-                'on', 'gridscale', 300};
+                'on', 'gridscale', 100};
             
 % -------------------------------------------------
 % Channel profiles - report   
@@ -204,7 +204,7 @@ for t = 1 : 2
         % For models with more then 4,
         % bands, don't plot delta and 
         % theta correlations 
-        if n_bands > 4; b1 = 3;
+        if n_bands > 5; b1 = 3;
         else; b1 = 1; end
 
         % For the report 

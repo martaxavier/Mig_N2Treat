@@ -1,9 +1,9 @@
-function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
+function [optimal] = kfold_cv_sessions_par(EEG, BOLD, varargin)
 
-%   [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,...) performs  
-%   blocked, (non-dependent) nested k-fold cross-validation to obtain 
+%   [model,optimal] = kfold_cv_sessopns_par(EEG,BOLD,...) performs,  
+%   nested k-fold cross-validation, across sessions, to obtain 
 %   the best model for the input EEG and BOLD data
-%   Version v3: pararelled computing; inner loop is also blocked 
+%   v1: inner loop is blocked 
 %
 %   Input data:
 %
@@ -12,11 +12,8 @@ function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
 %   
 %   Optional input parameters:  
 %
-%     'k'              The number of folds in the outer cv loop 
 %     'v'              The number of folds in the inner cv loop 
 %     'regress'        The regression method used to fit the model
-%                      'elasticnet' or 'l21_1' 
-%     'autocorr'       The order of the auto-correlation function 
 %     'rho'            Thecomplexity parameter rho of the L21+1 fit 
 %     'lambda'         The complexity parameter lambda of the L21+1 fit
 %     'sizx'           The size of the problem
@@ -42,43 +39,46 @@ tic
 % Sanity check and process input parameters 
 % ------------------------------------------------------------ 
 
-% X a real 2D matrix
-if ~ismatrix(EEG) || length(size(EEG)) ~= 2 || ~isreal(EEG)
-    error('EEG is not a real 2D matrix');
+% X a real 3D matrix
+if length(size(EEG)) ~= 3 || ~isreal(EEG)
+    error('EEG is not a real 3D matrix');
 end
 
-if size(EEG,1) < 2
+if size(EEG, 1) < 3
     error('Too few observations');
 end
 
-% If Y is a row vector, convert to a column vector
-if size(BOLD,1) == 1
+% If Y is a #sessions-row vector, 
+% convert to a #sessions-column vector
+if size(BOLD, 1) < size(BOLD, 2)
     BOLD = BOLD';
 end
 
 % Y a vector, same length as the columns of X
-if ~isvector(BOLD) || ~isreal(BOLD) || size(BOLD,1) ~= length(BOLD)
-    error('BOLD is not a conforming vector');
+if ~ismatrix(BOLD) || ~isreal(BOLD) || length(size(BOLD)) ~= 2
+    error('BOLD is not a real 2D matrix');
 end
 
 % Number of samples (time-points)
-n_pnts = length(BOLD);
+n_pnts = size(BOLD, 1);
 
 % Number of regressors in the model
 n_features = size(EEG, 2);
 
+% Number of sessions = outer folds
+K = size(EEG, 3);
 
 % ------------------------------------------------------------ 
 % Sanity check and process optional parameters 
 % ------------------------------------------------------------ 
 
 % Assign default values for each optional parameter
-pnames = {'k' 'v' 'regress' 'rho' 'lambda',...
-    'numpars' 'sizx' 'autocorr'}; dflts  = { 10 ...
-    10 'l21_1' [] [] 20 [n_pnts 31*6 4] 2};
+pnames = {'v' 'regress' 'rho' 'lambda',...
+    'numpars' 'sizx'}; 
+dflts  = {10 'l21_1' [] [] 20 [n_pnts 31*6 4]};
 
 % Assign variables corresponding to optional parameters 
-[K, V, method, rho, lambda, n_pars, siz_X, h] = ...
+[V, method, rho, lambda, n_pars, siz_X] = ...
     internal.stats.parseArgs(pnames, dflts, varargin{:});
 
 % Check if the method provided is 
@@ -112,11 +112,10 @@ end
 % Allocate arrays of model
 % parameters and performance
 % for each test/train pair
-opt_lambda =	zeros(K,1); 
+opt_lambda =	zeros(K, 1); 
 opt_rho =       opt_lambda;
-opt_coef =      zeros(n_features+1,K);
+opt_coef =      zeros(n_features+1, K);
 opt_df =        opt_lambda; 
-siz_dep =       opt_lambda;
 
 opt_bic_train =  opt_lambda; 
 opt_mse_train =  opt_lambda;
@@ -138,7 +137,8 @@ opt_corr_test = opt_lambda;
 if ~user_supplied_rho   
     
     rho = 0.6;
-    [lambda] = get_lambdas(EEG, BOLD, siz_X, rho,...
+    [lambda] = get_lambdas(EEG(:, :, 1), ...
+        BOLD(:, 1), siz_X, rho,...
         'dfmin', 45, 'method', method,...
         'numlambda', n_pars, 'lambdaratio', 1e-1); 
     
@@ -146,39 +146,29 @@ end
 
 %-------------- Begin outer loop ---------------%
 
-% Divide time-series into K total consecutive folds 
-% (assign each time-point to one fold)
-indices_out = sort(crossvalind('Kfold',n_pnts,K));
-
 for k = 1 : K
 
-    % Assign test set indices 
-    idx_test = (indices_out == k); 
-    idx_test = find(idx_test);
-    %siz_test = length(idx_test);
+    % Assign train set indices
+    idx_train = k;
     
-    % Find samples correlated with all samples within test set
-    % and remove dependent samples from the training set 
-%    rem = -h : h; dep = idx_test - rem; 
-%    dep = reshape(dep,[size(dep,1)*size(dep,2),1]);
-%    dep = unique(dep); dep(dep>n_pnts) = []; dep(dep<1) = [];
-%    siz_dep(k) = length(dep) - siz_test;
-    
-    % Assign training set indices 
-%    idx_train = (1 : n_pnts)'; 
-%    idx_train(dep) = []; 
-    idx_train = (indices_out ~= k); 
-    
-    siz_train = length(idx_train);
-    siz_test = length(idx_test);
-    
+    % Assign test set indices
+    idx_test = find(1 : K ~= k);
+
     % Assign train and test X (EEG) and Y (BOLD) variables 
-    X_train = EEG(idx_train, :); y_train = BOLD(idx_train);
-    X_test = EEG(idx_test, :); y_test = BOLD(idx_test);
+    X_train = EEG(:, :, idx_train); y_train = BOLD(:, idx_train);
+    X_test = EEG(:, :, idx_test); y_test = BOLD(:, idx_test);
+    
+    % Linearize test sets 
+    X_test = reshape(permute(X_test, [1 3 2]), ...
+        [size(X_test, 1)*size(X_test, 3) size(X_test, 2)]);
+    y_test = y_test(:);
+    
+    % Obtain train and test set sizes
+    siz_train = size(y_train, 1);
+    siz_test = size(y_test, 1);
     
     % Allocate bic and mse matrices for the learn and 
     % for the val set, each inner iteration through cols
-    %bic_learn = zeros(n_pars,N); nmse_learn = bic_learn; 
     bic_val = zeros(n_pars, V); nmse_val = bic_val;
     df_inner = zeros(n_pars, V);
 
@@ -189,7 +179,7 @@ for k = 1 : K
         
     % The inner loop 
     % has V iterations 
-    parfor v = 1 : V
+    for v = 1 : V
     
         % Assign broadcast variables to loop variables for efficiency 
         % Large broadcast variables can cause significant communication 
@@ -202,19 +192,14 @@ for k = 1 : K
         idx_val = find(idx_val);
         siz_val = length(idx_val);
         
-%         % Remove dependencies 
-%         rem = -h : h; dep = idx_val - rem; 
-%         dep = reshape(dep, [size(dep, 1)*size(dep, 2), 1]);
-%         dep = unique(dep); dep(dep > siz_train) = []; dep(dep < 1) = [];
-%         
-%         % Assign learning set indices 
-%         idx_learn = (1 : siz_train)'; 
-%         idx_learn(dep) = []; 
-          idx_learn = (indices_in ~= v);
+        % Assign learning set indices 
+        idx_learn = (indices_in ~= v); 
         
         % Assign learning and validation variables 
-        X_learn = EEG_par(idx_learn, :); y_learn = BOLD_par(idx_learn);
-        X_val = EEG_par(idx_val, :); y_val = BOLD_par(idx_val);
+        X_learn = squeeze(EEG_par(idx_learn, :, idx_train));
+        y_learn = squeeze(BOLD_par(idx_learn, idx_train));
+        X_val = squeeze(EEG_par(idx_val, :, idx_train)); 
+        y_val = squeeze(BOLD_par(idx_val, idx_train));
             
         % Screen the input method
         if strcmp(method,'l21_1')
@@ -222,15 +207,15 @@ for k = 1 : K
            % L21+1 fit with rho = r and lambda = l
             [betas,stats] = regress_L21_1(X_learn, ...
                 y_learn, siz_X, 'Rho', rho, 'Lambda', ...
-                lambda_par, 'MaxIter',1e3);
+                lambda_par, 'MaxIter', 1e3);
             [~,col] = find(betas); df = accumarray(col,1); 
-            df(setdiff(1:n_pars,col))= 0; df = flip(df);
+            df(setdiff(1 : n_pars, col))= 0; df = flip(df);
             betas = flip(betas,2);
 
         else
 
             % L2+1 fit with rho = r and lambda = l
-            [betas, stats] = regress_L2_1(X_learn,...
+            [betas,stats] = regress_L2_1(X_learn,...
             y_learn,'Alpha',rho,'Lambda',lambda_par,'MaxIter',1e3);
             df = stats.DF; df = flip(df)'; betas = flip(betas,2);
 
@@ -286,7 +271,7 @@ for k = 1 : K
 
         % Compute L21+1 coefficients for the current iteration of  
         % the outer CV procedure (k), using optimal lambda parameter 
-        [betas,stats] = regress_L21_1(X_train, y_train, siz_X,...
+        [betas, stats] = regress_L21_1(X_train, y_train, siz_X,...
         'Rho', opt_rho(k), 'Lambda', opt_lambda(k), 'MaxIter', 1e3);
         betas(abs(betas) < 5e-4) = 0; 
         opt_df(k) = length(find(betas));
@@ -333,55 +318,11 @@ end
 %--------------- End outer loop ---------------%
 
 % ------------------------------------------------------------ 
-% Estimate a final model  
-% ------------------------------------------------------------ 
-
-% Use the mode of the rho-lambda
-% pairs across the K cv folds 
-lam = mode(opt_lambda);
-r = mode(opt_rho);
-
-% Estimate the models final  
-% set of coefficients 
-if strcmp(method,'l21_1')
-    
-    [betas,stats] = regress_L21_1(EEG, ...
-    BOLD, siz_X, 'Rho', r, 'Lambda', ...
-    lam, 'MaxIter', 1e3);
-    betas(abs(betas) < 5e-4) = 0; 
-
-else
-    
-    [betas,stats] = regress_L2_1(EEG, ...
-    BOLD, 'Alpha', r, 'Lambda', ...
-    lam, 'MaxIter', 1e3);
-
-end
-
-model.efp = [stats.Intercept; betas];
-
-% ------------------------------------------------------------ 
 % Prepare output data   
 % ------------------------------------------------------------ 
-
-% Parameters of 
-% the model estimated
-% for the entire data
-model.lambda =  lam;
-model.rho =     rho;
-model.df =      length(find(model.efp));
-model.time =    toc;
-
-% Compute accuracy of the 
-% model estimated for the 
-% entire data 
-model.yhat =    model.efp(1) + EEG*model.efp(2:end);     
-model.mse =     sum((model.yhat - BOLD).^2);
-model.bic =     log(n_pnts).* model.df + ...
-                    n_pnts.* log(model.mse ./ n_pnts);
-model.nmse =    model.mse / sum((BOLD - mean(BOLD)).^2);
-model.corr =    corr(model.yhat, BOLD);
     
+% ADD OPTIMAL.YHAT
+
 % Prediction performance 
 % across the test sets 
 optimal.bic_test =      opt_bic_test;
