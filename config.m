@@ -6,7 +6,7 @@
 
 % If a variable here defined is a list, then all the scripts will 
 % loop through that list. If a variable here defined is a string, 
-% then this is a fixed parameter for the entire pipeline.
+% then this is a fixed parameter for th0e entire pipeline.
 % Each combination of all the variables in this section will originate
 % results that are to be saved in a specific directory 
 
@@ -17,12 +17,12 @@
 %   subjects = ["sub-32" "sub-35" "sub-36" "sub-37" "sub-38" ...
 %      "sub-39" "sub-40" "sub-42" "sub-43" "sub-44" "sub-45", ...
 %       "sub-46" "sub-47" "sub-48" "sub-49" "sub-50"]; 
-     subjects = ["sub-04" "sub-05" "sub-06" ...
-         "sub-07" "sub-08" "sub-09" "sub-10" "sub-11" "sub-12" ...
-         "sub-13" "sub-14" "sub-15" "sub-16" "sub-17" "sub-19" ...
-         "sub-20" "sub-21" "sub-22" "sub-23" "sub-24" "sub-25" ...
-         "sub-27" "sub-29"];
-     
+       subjects = ["sub-04" "sub-05" "sub-06" ...
+           "sub-07" "sub-08" "sub-09" "sub-10" "sub-11" "sub-12" ...
+           "sub-13" "sub-14" "sub-15" "sub-16" "sub-17" "sub-19" ...
+           "sub-20" "sub-21" "sub-22" "sub-23" "sub-24" "sub-25" ...
+           "sub-27" "sub-29"];
+      
 % Dataset
 % 'Mig_N2Treat', 'NODDI', 'PARIS';
 dataset = 'PARIS'; 
@@ -37,7 +37,7 @@ sub_task = '';
 
 % Sessions
 % "run-1", "run-2", "run-3"
-sessions = ["run-1", "run-2", "run-3"];
+sessions = ["run-2"];
 
 % BOLD RSN extraction method
 % 'ic_dmn','avg_dmn'
@@ -69,12 +69,16 @@ metrics = ["lc4"];
 reliab_metric = "icc";
 
 % Regression models 
-% 'l21_1','elasticnet'
-reg_models = "elasticnet";   
+% 'l21_1', 'l2_1'
+reg_models = "l2_1";   
 
+% Hierarchical clustering 
+% distance metric and algorithm
+hc_distance = ["average", "correlation"];
+    
 % Cross-validation method
-% 'nondep','regular','blocked','sessions'
-cv_method = "sessions";     
+% 'nondep','regular','blocked','sessions','one_class'
+cv_method = "blocked";     
 
 % Threshold of the DMN mask
 dmn_thr = 1;
@@ -304,9 +308,15 @@ path.correlation_group_ses =    strcat(dataset, '\RESULTS\', fullfile(data_path{
 path.correlation_reliability =   fullfile(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\correlation_reliability_analysis\', fullfile(method_path{1:2}), upper(reliab_metric));
 
 % EEG-BOLD Model
-path.model =                strcat(dataset, '\RESULTS\', fullfile(data_path{1:3}), '\models\', fullfile(method_path{1:3}));
-path.model_group =          strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\models\', fullfile(method_path{1:3}));                        
-                        
+path.model =                    strcat(dataset, '\RESULTS\', fullfile(pre, suf), '\models\', fullfile(method_path{1:3}));
+path.model_group =              strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:4}), '\models\', fullfile(method_path{1:3}));                        
+
+path.model_ses =                strcat(dataset, '\RESULTS\', fullfile(data_path{1:3}), '\models\', fullfile(method_path{1:3}));
+path.model_ses_group =          strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\models\', fullfile(method_path{1:3}));                        
+
+path.model_hc =                 strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\hierarchical_clustering\', fullfile(method_path{1:3}));
+path.model_one_class =          strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\one_class_models\', fullfile(method_path{1:3}));
+
 % Model Performance 
 ccat =                       [fullfile(method_path{:}), strcat(fullfile(method_path{2:3}), '\', strjoin(reg_models, '_vs_'), '\', cv_method)];
 path.compare_performance =  strcat(dataset, '\RESULTS\GROUP\', fullfile(data_path{2:3}), '\performance\', ccat);                                       

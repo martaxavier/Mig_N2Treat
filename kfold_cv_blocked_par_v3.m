@@ -1,9 +1,9 @@
-function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
+function [model,optimal] = kfold_cv_blocked_par_v3(EEG, BOLD, path_pars, varargin)
 
-%   [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,...) performs  
-%   blocked, (non-dependent) nested k-fold cross-validation to obtain 
-%   the best model for the input EEG and BOLD data
-%   Version v3: pararelled computing; inner loop is also blocked 
+%   [model, optimal] = kfold_cv_blocked_par_v3(EEG, BOLD, ...) performs  
+%   blocked, nested k-fold cross-validation to obtain the best model for 
+%   the input EEG and BOLD data
+%   Version 3: pararelled computing (v2, v3); inner loop is also blocked (v3) 
 %
 %   Input data:
 %
@@ -13,10 +13,11 @@ function [model,optimal] = kfold_cv_blocked_par_v3(EEG,BOLD,varargin)
 %   Optional input parameters:  
 %
 %     'k'              The number of folds in the outer cv loop 
-%     'v'              The number of folds in the inner cv loop 
+%     'v'              The validation to learn fraction of the 
+%                      inner CV loop 
+%     'n'              The number of cyles in the inner CV loop
 %     'regress'        The regression method used to fit the model
 %                      'elasticnet' or 'l21_1' 
-%     'autocorr'       The order of the auto-correlation function 
 %     'rho'            Thecomplexity parameter rho of the L21+1 fit 
 %     'lambda'         The complexity parameter lambda of the L21+1 fit
 %     'sizx'           The size of the problem
@@ -47,10 +48,6 @@ if ~ismatrix(EEG) || length(size(EEG)) ~= 2 || ~isreal(EEG)
     error('EEG is not a real 2D matrix');
 end
 
-if size(EEG,1) < 2
-    error('Too few observations');
-end
-
 % If Y is a row vector, convert to a column vector
 if size(BOLD,1) == 1
     BOLD = BOLD';
@@ -67,26 +64,17 @@ n_pnts = length(BOLD);
 % Number of regressors in the model
 n_features = size(EEG, 2);
 
-
 % ------------------------------------------------------------ 
 % Sanity check and process optional parameters 
 % ------------------------------------------------------------ 
 
 % Assign default values for each optional parameter
-pnames = {'k' 'v' 'regress' 'rho' 'lambda',...
-    'numpars' 'sizx' 'autocorr'}; dflts  = { 10 ...
-    10 'l21_1' [] [] 20 [n_pnts 31*6 4] 2};
+pnames = {'k' 'v' 'n' 'regress' 'rho' 'lambda', 'sizx'}; 
+dflts  = { 10 0.2 10 'l2_1' [] [] []};
 
 % Assign variables corresponding to optional parameters 
-[K, V, method, rho, lambda, n_pars, siz_X, h] = ...
+[K, V, N, method, rho, lambda, siz_X] = ...
     internal.stats.parseArgs(pnames, dflts, varargin{:});
-
-% Check if the method provided is 
-% one of the methods supported
-if ~strcmp(method,'l21_1') && ...
-    ~strcmp(method,'elasticnet')
-    error('Input method is not supported')
-end
 
 % Check if user supplied lambda and rho
 user_supplied_rho = true;
@@ -116,7 +104,6 @@ opt_lambda =	zeros(K,1);
 opt_rho =       opt_lambda;
 opt_coef =      zeros(n_features+1,K);
 opt_df =        opt_lambda; 
-siz_dep =       opt_lambda;
 
 opt_bic_train =  opt_lambda; 
 opt_mse_train =  opt_lambda;
@@ -128,68 +115,72 @@ opt_mse_test =  opt_lambda;
 opt_nmse_test = opt_lambda; 
 opt_corr_test = opt_lambda; 
 
-% In case the user hasn't supplied rho and lambda, 
-% (must supply both or neither), fix rho and compute
-% the set of 20 best lambda values for a random data  
-% set of the size of the train set. Use the computed
-% values for all the train/test sets. This is done
-% because the optimal rho-lambda depend largely on 
-% the size of the data
+% In case the user hasn't supplied rho and lambda (must 
+% supply both or neither), fix rho and retreive pre-established
+% lambda range of interest
 if ~user_supplied_rho   
     
-    rho = 0.6;
-    [lambda] = get_lambdas(EEG, BOLD, siz_X, rho,...
-        'dfmin', 45, 'method', method,...
-        'numlambda', n_pars, 'lambdaratio', 1e-1); 
+    if strcmp(method, 'l2_1') || strcmp(method, 'l21_1')
+    
+        % Rho or alpha parameter
+        rho = 0.6;
+
+        % Retreive pre-established lambda range of interest
+        load(fullfile(path_pars, strcat(method, ...
+            '_Lambdas.mat')), 'lambda');
+        
+    elseif strcmp(method, 'rf')
+        
+        % Number of trees
+        rho = 100;
+        
+        % Retreive pre-established range of number of features 
+        % to be used in each split
+        n_features_split_def = round(n_features/3);
+        llim = n_features_split_def - round(n_features/20);
+        hlim = n_features_split_def + round(n_features/20);
+        lambda = round(linspace(llim, hlim, 5));
+        
+    end
     
 end
+
+% Number of lambda values 
+n_lambda = length(lambda);
 
 %-------------- Begin outer loop ---------------%
 
 % Divide time-series into K total consecutive folds 
 % (assign each time-point to one fold)
-indices_out = sort(crossvalind('Kfold',n_pnts,K));
+indices_out = sort(crossvalind('Kfold', n_pnts, K));
 
 for k = 1 : K
 
     % Assign test set indices 
-    idx_test = (indices_out == k); 
-    idx_test = find(idx_test);
-    %siz_test = length(idx_test);
+    ind_test = (indices_out == k); 
+    ind_test = find(ind_test);
     
-    % Find samples correlated with all samples within test set
-    % and remove dependent samples from the training set 
-%    rem = -h : h; dep = idx_test - rem; 
-%    dep = reshape(dep,[size(dep,1)*size(dep,2),1]);
-%    dep = unique(dep); dep(dep>n_pnts) = []; dep(dep<1) = [];
-%    siz_dep(k) = length(dep) - siz_test;
+    ind_train = (indices_out ~= k); 
     
-    % Assign training set indices 
-%    idx_train = (1 : n_pnts)'; 
-%    idx_train(dep) = []; 
-    idx_train = (indices_out ~= k); 
-    
-    siz_train = length(idx_train);
-    siz_test = length(idx_test);
+    siz_train = length(ind_train);
+    siz_test = length(ind_test);
     
     % Assign train and test X (EEG) and Y (BOLD) variables 
-    X_train = EEG(idx_train, :); y_train = BOLD(idx_train);
-    X_test = EEG(idx_test, :); y_test = BOLD(idx_test);
+    X_train = EEG(ind_train, :); y_train = BOLD(ind_train);
+    X_test = EEG(ind_test, :); y_test = BOLD(ind_test);
     
     % Allocate bic and mse matrices for the learn and 
     % for the val set, each inner iteration through cols
     %bic_learn = zeros(n_pars,N); nmse_learn = bic_learn; 
-    bic_val = zeros(n_pars, V); nmse_val = bic_val;
-    df_inner = zeros(n_pars, V);
+    bic_val = zeros(n_lambda, N); nmse_val = bic_val;
+    df_inner = zeros(n_lambda, N); 
+    oob_error = zeros(n_lambda, N);
 
     %-------------- Begin inner loop --------------%
-
-    % Divide train set into K equally sized folds 
-    indices_in = sort(crossvalind('Kfold', siz_train, V));
         
     % The inner loop 
-    % has V iterations 
-    parfor v = 1 : V
+    % has N iterations 
+    parfor n = 1 : N
     
         % Assign broadcast variables to loop variables for efficiency 
         % Large broadcast variables can cause significant communication 
@@ -197,118 +188,171 @@ for k = 1 : K
         % replace them for temporary variables, created inside the loop 
         EEG_par = EEG; BOLD_par = BOLD; lambda_par = lambda;
     
-        % Assign test set indices 
-        idx_val = (indices_in == v); 
-        idx_val = find(idx_val);
-        siz_val = length(idx_val);
+        % Circular holdout assignment 
+        ind_start = randi([1 siz_train]);
+        indices_in = sort(crossvalind('Holdout', siz_train, V));
+    
+        % Assign learning set indices 
+        ind_learn = zeros(size(indices_in));
+        ind_learn(ind_start : end) = indices_in(1 : size(ind_learn) - ind_start + 1);
+        ind_learn(1 : ind_start - 1) = indices_in(size(ind_learn) - ind_start + 2 : size(ind_learn));        
+
+        % Assign validation set indices 
+        ind_val = (~ind_learn);
+        ind_val = find(ind_val);
+        siz_val = length(ind_val);
         
-%         % Remove dependencies 
-%         rem = -h : h; dep = idx_val - rem; 
-%         dep = reshape(dep, [size(dep, 1)*size(dep, 2), 1]);
-%         dep = unique(dep); dep(dep > siz_train) = []; dep(dep < 1) = [];
-%         
-%         % Assign learning set indices 
-%         idx_learn = (1 : siz_train)'; 
-%         idx_learn(dep) = []; 
-          idx_learn = (indices_in ~= v);
+        ind_learn = find(ind_learn);   
         
         % Assign learning and validation variables 
-        X_learn = EEG_par(idx_learn, :); y_learn = BOLD_par(idx_learn);
-        X_val = EEG_par(idx_val, :); y_val = BOLD_par(idx_val);
+        X_learn = EEG_par(ind_learn, :); y_learn = BOLD_par(ind_learn);
+        X_val = EEG_par(ind_val, :); y_val = BOLD_par(ind_val);
             
         % Screen the input method
-        if strcmp(method,'l21_1')
+        if strcmp(method, 'l21_1')
 
-           % L21+1 fit with rho = r and lambda = l
-            [betas,stats] = regress_L21_1(X_learn, ...
-                y_learn, siz_X, 'Rho', rho, 'Lambda', ...
-                lambda_par, 'MaxIter',1e3);
-            [~,col] = find(betas); df = accumarray(col,1); 
-            df(setdiff(1:n_pars,col))= 0; df = flip(df);
-            betas = flip(betas,2);
+           % L21+1 fit
+            [betas_par, stats_par] = regress_L21_1(X_learn, y_learn, ...
+                siz_X, 'Rho', rho, 'Lambda', lambda_par);
+            
+            [~, col] = find(betas_par); 
+            df = accumarray(col, 1); 
+            df(setdiff(1:n_lambda, col))= 0; 
+            df = flip(df);
+            betas_par = flip(betas_par, 2);          
 
-        else
+        elseif strcmp(method, 'l2_1')
 
-            % L2+1 fit with rho = r and lambda = l
-            [betas, stats] = regress_L2_1(X_learn,...
-            y_learn,'Alpha',rho,'Lambda',lambda_par,'MaxIter',1e3);
-            df = stats.DF; df = flip(df)'; betas = flip(betas,2);
+            % L2+1 elastic-net regression fit 
+            [betas_par, stats_par] = lasso(X_learn, y_learn, ...
+                'Alpha', rho, 'Lambda', lambda_par);
+            
+            df = stats_par.DF; df = flip(df)'; 
+            betas_par = flip(betas_par, 2);                
+            
+        elseif strcmp(method, 'rf')
+            
+            oob_error_par = zeros(n_lambda, 1);
+
+            for i = 1 : n_lambda
+                
+                % Rho is the # of trees and lambda the # of variables 
+                % to select at random for each decision split
+                rf_model_par = TreeBagger(rho, X_learn, y_learn, 'Method', ...
+                    'regression', 'OOBPredictorImportance', 'on', ...
+                    'NumPredictorsToSample', lambda_par(i));     
+                oob_error_tmp = oobError(rf_model_par);
+                oob_error_par(i) = oob_error_tmp(end);
+            
+            end
+
+            oob_error(:, n) = oob_error_par;
 
         end
         
-        % Save intercept values for current rho-lambda
-        intercept = stats.Intercept; intercept=flip(intercept);
+          
+        if strcmp(method, 'l2_1') || strcmp(method, 'l21_1')
+            
+            % Save intercept values for current rho-lambda
+            intercept = stats_par.Intercept; intercept=flip(intercept);
+            y_hat_val = intercept + X_val*betas_par; 
 
-        % Compute bic values for all rho-lambda 
-        % pairs in the val and learn set 
-        y_hat_val = intercept + X_val*betas;      
-        mse_val = sum((y_hat_val - y_val).^2)';     
-        nmse_val(:, v) = mse_val/sum((y_val - mean(y_val)).^2);     
-        bic_val(:, v) = log(siz_val).*df + ...
-            siz_val.*log(mse_val ./ siz_val);
-        
-        df_inner(:, v) = df;
+            % Compute bic values for all rho-lambda 
+            % pairs in the val and learn set     
+            mse_val = sum((y_hat_val - y_val).^2)';     
+            nmse_val(:, n) = mse_val/sum((y_val - mean(y_val)).^2);     
+            bic_val(:, n) = log(siz_val).*df + ...
+                siz_val.*log(mse_val ./ siz_val);
+
+            df_inner(:, n) = df;
+            
+        end
         
     end
     
     %--------------- End inner loop ---------------%
     
-    % Flag as ineligible, in 'trash_lam' (1) lambda values for which 
-    % nmse values are, at any of the inner iterations, above a given 
-    % inacceptable threshold, 'thresh_nmse' and (2) lambda values for 
-    % which dof values are, at any of the inner iterations, zero
-    % Flag, in 'trash_n', inner iterations in which the average nmse 
-    % value in the validation set was above 'thresh_nmse' 
-    thresh_nmse = 0.98; aux = nmse_val > thresh_nmse; 
-    aux(:, mean(nmse_val, 1) > thresh_nmse - 0.05) = 0; 
-    trash_lam = find(sum(aux, 2) >= 1); 
-    [rows, ~] = find(df_inner == 0); 
-    trash_lam = unique([trash_lam; unique(rows)]);
+    if strcmp(method, 'l2_1') || strcmp(method, 'l21_1')
     
-    % Average bic values without considering
-    % iterations flagged as "trash" 
-    aux = bic_val; aux(:, mean(nmse_val, 1) > thresh_nmse) = 0; 
-    [rows,~,val] = find(aux);
-    aux_val = accumarray(rows, val, [], @mean);
+        % Flag as ineligible, in 'trash_lam' (1) lambda values for which 
+        % nmse values are, at any of the inner iterations, above a given 
+        % inacceptable threshold, 'thresh_nmse' and (2) lambda values for 
+        % which dof values are, at any of the inner iterations, zero
+        % Flag, in 'trash_n', inner iterations in which the average nmse 
+        % value in the validation set was above 'thresh_nmse' 
+        thresh_nmse = 0.98; aux = nmse_val > thresh_nmse; 
+        aux(:, mean(nmse_val, 1) > thresh_nmse - 0.05) = 0; 
+        trash_lam = find(sum(aux, 2) >= 1); 
+        [rows, ~] = find(df_inner == 0); 
+        trash_lam = unique([trash_lam; unique(rows)]);
+
+        % Average bic values without considering
+        % iterations flagged as "trash" 
+        aux = bic_val; aux(:, mean(nmse_val, 1) > thresh_nmse) = 0; 
+        [rows,~,val] = find(aux);
+        aux_val = accumarray(rows, val, [], @mean);
+
+        % Find optimal rho-lambda for the current test/train pair,
+        % i.e, find rho-lambda that minimizes sum of bics through  
+        % all V inner iterations in the validation set
+        aux_val(trash_lam) = Inf; [~, ind_opt] = min(aux_val); 
+        if isempty(ind_opt); [~, ind_opt] = min(sum(bic_val, 2)); end
     
-    % Find optimal rho-lambda for the current test/train pair,
-    % i.e, find rho-lambda that minimizes sum of bics through  
-    % all V inner iterations in the validation set
-    aux_val(trash_lam)=Inf; [~, idx_opt] = min(aux_val); 
-    if isempty(idx_opt); [~, idx_opt] = min(sum(bic_val, 2)); end
+    elseif strcmp(method, 'rf')
+        
+        % Find optimal number of leafs that
+        % resulted in minimum out-of-bag error
+        [~, ind_opt] = min(sum(oob_error, 2)); 
+        
+    end
        
     % Save rho-lambda pair that minimizes
     % bic in learn and val sets combined 
-    opt_lambda(k,1) = lambda(idx_opt);
-    opt_rho(k,1) = rho;
+    opt_lambda(k, 1) = lambda(ind_opt);
+    opt_rho(k, 1) = rho;
 
-    if strcmp(method,'l21_1')
+    if strcmp(method, 'l21_1')
 
-        % Compute L21+1 coefficients for the current iteration of  
-        % the outer CV procedure (k), using optimal lambda parameter 
-        [betas,stats] = regress_L21_1(X_train, y_train, siz_X,...
-        'Rho', opt_rho(k), 'Lambda', opt_lambda(k), 'MaxIter', 1e3);
+        % L21+1 fit for the current iteration of the outer CV loop 
+        [betas, stats] = regress_L21_1(X_train, y_train, siz_X,...
+        'Rho', opt_rho(k), 'Lambda', opt_lambda(k));
         betas(abs(betas) < 5e-4) = 0; 
         opt_df(k) = length(find(betas));
+        
+        % Compute the y hat for the test and training 
+        % sets of the current outer iteration k
+        y_hat_test = stats.Intercept + X_test*betas;
+        y_hat_train = stats.Intercept + X_train*betas;  
+        
+        % Model coefficientrs of the current outer 
+        % iteration k 
+        opt_coef(:, k) = [stats.Intercept; betas];        
 
-    else
-
-        % Compute L2+1 coefficients for the current iteration of  
-        % the outer CV procedure (k), using optimal lambda parameter 
-        [betas, stats] = regress_L2_1(X_train, y_train,...
-        'Alpha', opt_rho(k), 'Lambda', opt_lambda(k), 'MaxIter', 1e3);
-        opt_df(k) = stats.DF; 
-
+    elseif strcmp(method, 'l2_1')
+        
+        % L2+1 fit for the current iteration of the outer CV loop 
+        [betas, stats] = lasso(X_train, y_train, 'Alpha', opt_rho(k), ...
+            'Lambda', opt_lambda(k)); opt_df(k) = stats.DF; 
+        
+        % Compute the y hat for the test and training 
+        % sets of the current outer iteration k
+        y_hat_test = stats.Intercept + X_test*betas;
+        y_hat_train = stats.Intercept + X_train*betas;
+        
+        % Model coefficientrs of the current outer 
+        % iteration k 
+        opt_coef(:, k) = [stats.Intercept; betas];   
+        
+    elseif strcmp(method, 'rf')
+        
+        rf_model = TreeBagger(opt_rho(k), X_train, y_train, ...
+            'Method', 'regression', 'OOBPredictorImportance', 'on', ...
+            'NumPredictorsToSample', opt_lambda(k)); 
+        
+        [y_hat_test, ~] = predict(rf_model, X_test); 
+        [y_hat_train, ~] = predict(rf_model, X_train); 
+    
     end
-    
-    % Compute the y hat for the test and training 
-    % sets of the current outer iteration k
-    y_hat_test = stats.Intercept + X_test*betas;
-    y_hat_train = stats.Intercept + X_train*betas;
-    
-    % Model coefficientrs of the current outer 
-    % iteration k 
-    opt_coef(:, k) = [stats.Intercept; betas];
     
     % Model performance of the current outer 
     % iteration k, in the test and train sets 
@@ -343,22 +387,39 @@ r = mode(opt_rho);
 
 % Estimate the models final  
 % set of coefficients 
-if strcmp(method,'l21_1')
+if strcmp(method, 'l21_1')
     
-    [betas,stats] = regress_L21_1(EEG, ...
+    [betas, stats] = regress_L21_1(EEG, ...
     BOLD, siz_X, 'Rho', r, 'Lambda', ...
     lam, 'MaxIter', 1e3);
     betas(abs(betas) < 5e-4) = 0; 
-
-else
     
-    [betas,stats] = regress_L2_1(EEG, ...
-    BOLD, 'Alpha', r, 'Lambda', ...
-    lam, 'MaxIter', 1e3);
+    model.efp =     [stats.Intercept; betas];
+    model.df =      length(find(model.efp));
+    model.yhat =    model.efp(1) + EEG*model.efp(2:end);      
+
+elseif strcmp(method, 'l2_1')
+    
+    [betas, stats] = lasso(EEG, ...
+    BOLD, 'Alpha', r, 'Lambda', lam);
+
+    model.efp =     [stats.Intercept; betas];
+    model.df =      length(find(model.efp));
+    model.yhat =    model.efp(1) + EEG*model.efp(2:end);       
+
+elseif strcmp(method, 'rf')
+    
+    rfmodel = TreeBagger(r, EEG, ...
+        BOLD, 'Method', 'regression', ...
+        'OOBPredictorImportance', ...
+        'on', 'NumPredictorsToSample', lam);
+    
+    model.efp = rfmodel; 
+    model.df = n_features;
+    [model.yhat, ~] = predict(rf_model, EEG);
 
 end
 
-model.efp = [stats.Intercept; betas];
 
 % ------------------------------------------------------------ 
 % Prepare output data   
@@ -369,13 +430,11 @@ model.efp = [stats.Intercept; betas];
 % for the entire data
 model.lambda =  lam;
 model.rho =     rho;
-model.df =      length(find(model.efp));
 model.time =    toc;
 
 % Compute accuracy of the 
 % model estimated for the 
-% entire data 
-model.yhat =    model.efp(1) + EEG*model.efp(2:end);     
+% entire data    
 model.mse =     sum((model.yhat - BOLD).^2);
 model.bic =     log(n_pnts).* model.df + ...
                     n_pnts.* log(model.mse ./ n_pnts);

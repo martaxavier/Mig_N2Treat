@@ -1,11 +1,9 @@
 % Create the report heading 
-my_title = strcat(upper(session), ' MODELS');
+my_title = 'ONE-CLASS MODELS';
 H1 = get_report_heading(1, my_title);
 add(R, H1) 
 
-n_subjects = length(subjects);
 n_metrics = length(metrics);
-fs = fs_analysis;
 
 % ------------------------------------------------------------
 % Go through metrics 
@@ -19,106 +17,38 @@ for m = 1 : n_metrics
     % for current metric
     get_metric_pars
     
-%     if strcmp(reg_model,'l21_1') && n_bands == 1
-%         continue
-%     end
-    
-    % Load matrix containing the optimal 
-    % delay for the BOLD deconvolution 
-    % of each subject
-    if strcmp(bold_shift,'deconv')
-        load(fullfile(path_pars, ...
-            'deconv_delay.mat'));
-    end
-    
     % Add metric heading to the report 
     my_title = upper(metric);
     H2 = get_report_heading(2, my_title);
     add(R, H2);
     
-    % --------------------------------------------------------
-    % Go through subjects 
-    % --------------------------------------------------------
-
-    for s = 1 : n_subjects
-        
-        subject = subjects(s);
-
-        % Specify directory where images are to be saved 
-        path_img_metric_out = strcat(path_img_out(s), ...
-             '\', metric, '\', session);
-
-        % Create directory where results are to be saved 
-        if ~exist(path_img_metric_out, 'dir')
-            mkdir(path_img_metric_out); 
-        end
+    % Broadcast the current pipeline stage 
+    disp(strcat('Creating report of one-class model ', ...
+        ' results for  metric',  " ", metric, ' ...'));
     
-        % Broadcast the current pipeline stage 
-        disp(strcat('Creating report of model ', ...
-            ' results for subject', " ", subject, ', metric', ...
-            " ", metric, ' ...'));
-        
-        % Define input EEG and BOLD data, according
-        % to current metric
-        eeg_in = strcat(eeg_metric, '_', ...
-            'eeg_feature', '_', eeg_shift, '.txt');
-        bold_in = strcat('bold_preproc', ...
-        '_', bold_shift, '.txt');
-        if contains(eeg_in, '_.'); eeg_in = ...
-                replace(eeg_in, '_.', '.'); end
-        if contains(bold_in, '_.'); bold_in = ...
-                replace(bold_in, '_.', '.'); end
-    
-        % Load BOLD and EEG data
-        eeg = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
-        bold = dlmread(fullfile(path_bold_in(s, se), bold_in));
+    % Specify directory where images are to be saved 
+    path_img_metric_out = strcat(path_img_out, '\', metric);
 
-        % Load model results for current subject,
-        % model pair 
-        model_in = strcat(metric, '_', 'model', ...
-            '_', cv_method, '.mat');
-        folds_in = strcat(metric, '_', 'model_folds', ...
-            '_', cv_method, '.mat');
-        if ~strcmp(cv_method, 'sessions')
-            load(fullfile(path_data_in(s), model_in));
-        else
-            model = [];
-        end
-        load(fullfile(path_data_in(s), folds_in));
-        
-        % CHANGE THIS NEXT - PUT IT IN KFOLD 
-        optimal.yhat(:, se) = optimal.efp(1, se) + eeg*optimal.efp(2:end, se);
+    % Create directory where results are to be saved 
+    if ~exist(path_img_metric_out, 'dir')
+        mkdir(path_img_metric_out); 
+    end    
 
-        % Save estimated deconvolution 
-        % delay for current subject 
-        % (when applicable)
-        deconv_delay = [];
-        if strcmp(bold_shift, 'deconv')
-            deconv_delay = ...
-                table2array(deconv_delay(s, 2));
-        end
+    data_in = strcat(metric, '_', 'model_', cv_method, '.mat');
+    load(fullfile(path_data_in, data_in), 'optimal');
 
-        % Add subject heading to the report 
-        my_title = subjects(s);
-        H3 = get_report_heading(3, my_title);
-        add(R, H3);
+    % Plot and/or report model results (EFP)
+    plot_efp(optimal, reg_models, metric, cv_method, ...
+        R, flag.report, path_img_metric_out, path_pars);
 
-        % Plot and/or report model results (EFP)
-        plot_efp(bold, model, optimal, reg_models, metric, ...
-            cv_method, se, deconv_delay, fs, R, flag.report, ...
-            path_img_metric_out, path_pars);
-
-    end % finish looping through metrics 
-
-end % finish looping through subjects
-
+end % finish looping through metrics 
 
 %/////////////////////////////////////////////////////////////
 % SUBFUNCTIONS 
 %/////////////////////////////////////////////////////////////
 
-function [] = plot_efp(bold, model, optimal, reg_model, metric, ...
-    cv_method, se, deconv_delay, fs, R, report, path_img_out, path_pars)
+function [] = plot_efp(optimal, reg_model, metric, ...
+    cv_method, R, report, path_img_out, path_pars)
 
 % ------------------------------------------------------------
 % Read inputs 
@@ -143,37 +73,20 @@ ax.Position = [left bottom ax_width ax_height];
 
 % Write default settings for topoplot
 topo_settings = {'electrodes','labels', ...
-    'whitebk','on','gridscale',100};
+    'whitebk','on','gridscale',300};
 
 % ------------------------------------------------------------
 % Assign model variables 
 % ------------------------------------------------------------ 
 
-% Assign model variables 
-% that are averaged through folds 
-if ~strcmp(cv_method, 'sessions')
-    
-    efp_model =     model.efp;
-    lambda_model =  model.lambda;
-    rho_model =     model.rho; 
-    df_model =      model.df;
-    yhat_model =    model.yhat;
-    bic_test =      mean(optimal.bic_test);
-    nmse_test =     mean(optimal.nmse_test);
-    corr_test =     mean(optimal.corr_test);
-    
-else
-    
-    efp_model =     optimal.efp(:, se);
-    lambda_model =  optimal.lambda(se);
-    rho_model =     optimal.rho(se); 
-    df_model =      optimal.df(se);
-    yhat_model =    optimal.yhat(:, se);
-    bic_test =      optimal.bic_test(se);
-    nmse_test =     optimal.nmse_test(se);
-    corr_test =     optimal.corr_test(se);
-    
-end
+
+efp_model =     mean(optimal.efp, 2);
+lambda_model =  mean(optimal.lambda);
+rho_model =     mean(optimal.rho);
+df_model =      length(find(efp_model));
+bic_test =      mean(optimal.bic_test, 1);
+nmse_test =     mean(optimal.nmse_test, 1);
+corr_test =     mean(optimal.corr_test, 1);
 
 % ------------------------------------------------------------
 % Plot model variables - performance and final model
@@ -246,39 +159,6 @@ for t = 1 : length(txt)
 end
 
 % ------------------------------------------------------------
-% Plot BOLD signal and BOLD estimate 
-% ------------------------------------------------------------
-
-time = 0 : 1/fs : (length(bold)-1)*(1/fs);
-
-% Plot predicted BOLD signal on top of original BOLD signal
-fig = figure('Name', strcat('Predicted BOLD signal', ...
-    ' and original BOLD signal'));
-fig.Position(3:4) = fig.Position(3:4)*5;
-plot(time, bold,'LineWidth',2.5,'Color','#1ca9df'); hold on; 
-plot(time, yhat_model,'LineWidth',3,'Color','#4acb84');
-legend('BOLD signal', 'BOLD estimate','FontSize',22, ...
-    'FontName','Arial');
-xlabel('Time (s)','FontSize',22,'FontName','Arial');
-ylabel('Amplitude','FontSize',22,'FontName','Arial');
-grid on 
-img_out = 'BOLD.png';
-saveas(gcf,fullfile(path_img_out,img_out));
-
-% ------------------------------------------------------------
-% Report BOLD signal and BOLD estimate
-% ------------------------------------------------------------
-
-% Create title for current report section  
-my_title = 'BOLD ESTIMATE';
-H4 = get_report_heading(4,my_title);
-add(R,H4);
-
-I = Image(fullfile(path_img_out,img_out));
-I.Style={ScaleToFit(true),HAlign('center')};
-add(R,I);
-        
-% ------------------------------------------------------------
 % Plot EEG coefficient estimates 
 % ------------------------------------------------------------
 
@@ -292,40 +172,6 @@ efp_model = efp_model(2:end);
 
 % Reshape EEG coefficients matrix (EFP)
 efp_model = reshape(efp_model,dim);
-
-
-% % Topographic maps of averaged (through delays and frequencies)
-% % average coefficient estimates  
-% fig_title = strcat('Topographic map of averaged',...
-%    ' (through delays and bands) coefficient estimates'); 
-% figure('Name',fig_title); signal = sum(sum(efp_model,3),2); 
-% topoplot(signal,chanlocs,'maplimits','maxmin',topo_settings{:}); 
-% colorbar; 
-% img_out = strcat('TOPO_AVGEFP.png');
-% saveas(gcf,fullfile(path_img_out,img_out));
-% 
-% 
-% % Topographic maps of averaged (through delays and frequencies)
-% % average coefficient estimates (absolute value)
-% fig_title = strcat('Topographic map (abs values) of averaged', ...
-%    ' (through delays and bands) coefficient estimates'); 
-% figure('Name',fig_title); signal = abs(sum(sum(efp_model,3),2));
-% topoplot(signal,chanlocs,topo_settings{:}); 
-% caxis([0 max(signal)]); colorbar; 
-% img_out = strcat('TOPO_AVGEFP_abs.png');
-% saveas(gcf,fullfile(path_img_out,img_out));
-% 
-% % Topographic maps of averaged (through delays and frequencies)
-% % absolute coefficient estimates  
-% fig_title = strcat('Topographic map of averaged (through', ...
-%    'delays and bands) absolute coefficient estimates'); 
-% figure('Name',fig_title); signal = sum(sum(abs(efp_model),3),2);
-% topoplot(signal,chanlocs,topo_settings{:});
-% colorbar; caxis([0 max(signal)]); 
-% img_out = strcat('TOPO_ABSEFP.png');
-% saveas(gcf,fullfile(path_img_out,img_out));
-% 
-% return
 
 % Reshape EEG coefficients matrix 
 % for better visualization for plotting 

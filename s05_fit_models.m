@@ -16,58 +16,103 @@ for m = 1 : length(metrics)
     % If cross-validation is to be performed
     % across sessions, it won't be necessary 
     % to compute the optimal cv parameters 
-    if ~strcmp(cv_method, 'sessions')
-        
-        % Load optimal CV parameters K and 
-        % V for current metric 
-        cv_pars_in = strcat(reg_models, '_', ...
-            cv_method, '_', metric, '.mat');
-        load(fullfile(path_pars, cv_pars_in), ...
-            'cv_pars');
-        k = cv_pars.K; v = cv_pars.V;
-
+    if ~strcmp(cv_method, 'sessions') && ...
+        ~strcmp(cv_method, 'one_class')
+    
         % Load estimated order of the ACF for current metric 
         if strcmp(bold_shift, 'deconv')
             acf_order_in = strcat('acf_order_deconv_', sessions, '.mat');
         else
             acf_order_in = strcat('acf_order_', sessions', '.mat');
         end
-        load(fullfile(path_pars, ...
-            acf_order_in), 'acf_order');
+        load(fullfile(path_pars, acf_order_in(se)), 'acf_order');
         
     end 
+               
+    % Define input EEG and BOLD data, according to
+    % the current metric
+    eeg_in = strcat(eeg_metric, '_', 'eeg_feature', ...
+        '_', eeg_shift, '.txt');
+    bold_in = strcat('bold_preproc', '_', bold_shift, '.txt');
+
+    if contains(eeg_in, '_.')
+        eeg_in = replace(eeg_in, '_.', '.');
+    end
+    if contains(bold_in, '_.')
+        bold_in = replace(bold_in, '_.', '.');
+    end
+            
 
    %---------------------------------------------------    
    % Go through subjects
    %----------------------------------------------------
 
-   for s = 1 : length(subjects)
+   n_subjects = length(subjects);
+   n_sessions = length(sessions);
+   
+   if strcmp(cv_method, 'one_class')
+             
+        % Create outpur directory, if not existent
+        if ~exist(path_data_out, 'dir')
+           mkdir(path_data_out);
+        end  
+        
+        if ~exist(path_hc, 'dir')
+            mkdir(path_hc);
+        end
+            
+        eeg = dlmread(fullfile(path_eeg_in(1, 1), eeg_in));
+        bold = dlmread(fullfile(path_bold_in(1, 1), bold_in));
+
+        eeg = zeros([size(eeg) n_subjects*n_sessions]);
+        bold = zeros([length(bold) n_subjects*n_sessions - 1]); 
+        s_se = 1;
+        
+   end
+   
+   for s = 1 : n_subjects
 
         subject = subjects(s);          
 
-        display(strcat('Fitting model for', " ", ...
-            subject, ',', " ", metric, ',', " ", ...
-            cv_method, ',', " ", reg_models, '...'));
-              
-        % Define input EEG and BOLD data, according
-        % to current metric
-        eeg_in = strcat(eeg_metric, '_', ...
-            'eeg_feature', '_', eeg_shift, '.txt');
-        bold_in = strcat('bold_preproc', ...
-            '_', bold_shift, '.txt');
-
-        if contains(eeg_in, '_.')
-            eeg_in = replace(eeg_in, '_.', '.');
-        end
-        if contains(bold_in, '_.')
-            bold_in = replace(bold_in, '_.', '.');
-        end
-        
         % If cross-validation is to be performed
         % across sessions, it won't be necessary 
         % to compute the optimal cv parameters 
-        if ~strcmp(cv_method, 'sessions')
-
+        if strcmp(cv_method, 'sessions')
+            
+            % Create outpur directory, if not existent
+            if ~exist(path_data_out(s), 'dir')
+               mkdir(path_data_out(s));
+            end 
+            
+            eeg = dlmread(fullfile(path_eeg_in(s, 1), eeg_in));
+            bold = dlmread(fullfile(path_bold_in(s, 1), bold_in));
+            
+            eeg = cat(3, eeg, zeros([size(eeg) 2]));
+            bold = cat(2, bold, zeros([length(bold) 2]));
+            
+            % Go through sessions
+            for se = 2 : n_sessions
+                
+                % Load input EEG and BOLD data 
+                eeg(:, :, se) = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
+                bold(:, se) = dlmread(fullfile(path_bold_in(s, se), bold_in));
+                
+            end % sessions 
+            
+        elseif strcmp(cv_method, 'one_class')
+            
+            % Go through sessions 
+            for se = 1 : n_sessions
+                
+                EEG = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
+                eeg(:, :, s_se) =  dlmread(fullfile(path_eeg_in(s, se), eeg_in));
+                bold(:, s_se) = dlmread(fullfile(path_bold_in(s, se), bold_in));
+                s_se = s_se + 1; 
+                
+            end % sessions 
+            
+        else
+            
             % Create output directory, if not existent 
             if ~exist(path_data_out(s, se), 'dir')
                mkdir(path_data_out(s, se));
@@ -77,28 +122,6 @@ for m = 1 : length(metrics)
             eeg = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
             bold = dlmread(fullfile(path_bold_in(s, se), bold_in));
             
-        else
-            
-            % Create outpur directoru, if not existent
-            if ~exist(path_data_out(s), 'dir')
-               mkdir(path_data_out(s));
-            end 
-            
-            eeg = dlmread(fullfile(path_eeg_in(s, 1), eeg_in));
-            bold = dlmread(fullfile(path_bold_in(s, 1), bold_in));
-            
-            eeg = cat(3, eeg, zeros([size(eeg) 2]));
-            bold = cat(2, bold, zeros([length(bold) 1]));
-            
-            % Go through sessions
-            for se = 2 : length(sessions)
-                
-                % Load input EEG and BOLD data 
-                eeg(:, :, se) = dlmread(fullfile(path_eeg_in(s, se), eeg_in));
-                bold(:, se) = dlmread(fullfile(path_bold_in(s, se), bold_in));
-                
-            end % sessions 
-            
         end
 
         % Perform cross-validation to fit the current model
@@ -106,48 +129,80 @@ for m = 1 : length(metrics)
         switch cv_method
 
             case 'regular'
-
+   
+                display(strcat('Fitting model for', " ", ...
+                    subject, ',', " ", metric, ',', " ", ...
+                    cv_method, ',', " ", reg_models, '...'));
+        
                 [model, optimal] = kfold_cv_par_v2(eeg, bold,...
-                    'k', k, 'val2learn', v, 'regress', reg_models);
+                    'k', 10, 'val2learn', 0.2, 'regress', reg_models);
 
             case 'nondep'
+                
+                 display(strcat('Fitting model for', " ", ...
+                    subject, ',', " ", metric, ',', " ", ...
+                    cv_method, ',', " ", reg_models, '...'));               
                 
                 idx = find(ismember(table2array(acf_order), subject));
                 order = table2array(acf_order(idx, 2));   
                 [model, optimal] = kfold_cv_nondep_par_v3...
-                    (eeg, bold, 'k', k, 'regress', reg_models, ...
-                    'autocorr', order, 'sizx', ...
-                    [length(bold) prod(dim)]);
+                    (eeg, bold, 'k', 10, 'v', 0.3, 'regress', reg_models, ...
+                    'autocorr', order, 'sizx', [length(bold) prod(dim)]);
 
             case 'blocked'
+                
+                display(strcat('Fitting model for', " ", ...
+                    subject, ',', " ", metric, ',', " ", ...
+                    cv_method, ',', " ", reg_models, '...'));                
 
-                idx = find(ismember(table2array(acf_order), subject));
-                order = table2array(acf_order(idx, 2));
                 [model, optimal] =  kfold_cv_blocked_par_v3(eeg, bold, ...
-                    'k', 6, 'v', 6, 'regress', reg_models,...
-                    'autocorr', order, 'sizx', ...
-                    [length(bold) prod(dim)]);
+                    path_pars, 'k', 10, 'v', 0.3, 'regress', reg_models, ...
+                    'sizx', [length(bold) prod(dim)]);
                 
             case 'sessions'
+                
+                display(strcat('Fitting model for', " ", ...
+                    subject, ',', " ", metric, ',', " ", ...
+                    cv_method, ',', " ", reg_models, '...'));                
                    
-                [optimal] = kfold_cv_sessions_par(eeg, bold, ...
+                [optimal] = kfold_cv_sessions_par(eeg, bold, path_pars, ...
                     'regress', reg_models, 'sizx', [size(bold, 1) ...
                     prod(dim)]);
 
         end 
 
         % Define output data according to current metric 
-        model_out = strcat(metric, '_', 'model_', ...
-           cv_method, '.mat'); 
-        model_folds_out = strcat(metric, '_', ...
-            'model_folds_', cv_method, '.mat'); 
+        model_out = strcat(metric, '_', 'model_', cv_method, '.mat'); 
+        model_folds_out = strcat(metric, '_',  'model_folds_', cv_method, '.mat'); 
 
-        % Save model and optimal structs in .mat files 
-        if ~strcmp(cv_method, 'sessions')
+        % Save model
+        if ~strcmp(cv_method, 'sessions') && ~strcmp(cv_method, 'one_class')
             save(fullfile(path_data_out(s), model_out), 'model');
+            save(fullfile(path_data_out(s), model_folds_out), 'optimal');            
+        elseif ~strcmp(cv_method,  'one_class')
+            save(fullfile(path_data_out(s), model_folds_out), 'optimal');
         end
-        save(fullfile(path_data_out(s), model_folds_out), 'optimal');
 
    end % finish looping through subjects 
+   
+   switch cv_method
+       
+       case 'one_class'
+           
+        display(strcat('Fitting model for', " ", metric, ',', ...
+            " ", cv_method, ',', " ", reg_models, '...'));           
+           
+         [ses_coef, clusters, optimal] = kfold_one_class_par(eeg, bold, ...
+             path_pars, path_hc, 'hc_distance', hc_distance, 'v', 0.3, 'n', 4); 
+         
+         % Save model
+         model_one_class_out = strcat(metric, '_', 'model_', cv_method, '.mat');  
+         ses_coef_out = strcat(metric, '_', 'ses_coef_', cv_method, '.mat'); 
+         clusters_out = strcat(metric, '_', 'clusters_', cv_method, '.mat'); 
+         save(fullfile(path_data_out, model_one_class_out), 'optimal');
+         save(fullfile(path_data_out, ses_coef_out), 'ses_coef');
+         save(fullfile(path_data_out, clusters_out), 'clusters');
+           
+   end
 
 end % finish looping through metrics

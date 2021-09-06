@@ -28,7 +28,7 @@ flag.group_correlation_analysis = 0;
 flag.group_correlation_analysis_ses = 0; 
 flag.power_reliability_analysis = 0;
 flag.connectivity_reliability_analysis = 0;
-flag.correlation_reliability_analysis = 1;
+flag.correlation_reliability_analysis = 0;
 
 % LEVEL 4
 flag.estimate_acf_order = 0;
@@ -36,7 +36,7 @@ flag.optimize_cv_pars = 0;
 
 % LEVEL 5
 flag.fit_models = 0;
-flag.report_models = 0;
+flag.report_models = 1;
 
 % LEVEL 6
 flag.group_model_stats = 0;
@@ -45,7 +45,7 @@ flag.group_model_stats = 0;
 flag.compare_model_performance = 0;
 
 % REPORT 
-flag.report = 0;    % 2 to generate files + report + report images (fast,default)
+flag.report = 1;    % 2 to generate files + report + report images (fast, default)
                     % 1 to generate files + report + all images (slow)
                     % 0 to generate only output files (no report or images)
 
@@ -735,30 +735,45 @@ if flag.fit_models
     % Define input/output data/paths 
     path_eeg_in = path.eeg_feature;
     path_bold_in = path.bold_preproc;
-    path_data_out = path.model; 
-    path_img_out = strcat('IMAGES\', path_data_out);
     path_report_out = path.report;
-
-    if strcmp(cv_method, 'sessions')
-        
-        % Run script
-        s05_fit_models
     
-    else
+   switch cv_method
+       
+       case 'sessions'
+           
+            path_data_out = path.model_ses;
+            path_img_out = strcat('IMAGES\', path_data_out);
+                
+            % Run script
+            s05_fit_models
+           
+       case 'one_class'
+           
+            path_data_out = path.model_one_class;
+            path_hc = path.model_hc; 
+            path_img_out = strcat('IMAGES\', path_data_out);
+                
+            % Run script
+            s05_fit_models           
         
-        % Go through sessions if CV is 
-        % not to run across sessions 
-        for se = 1 : length(sessions)
+       otherwise
+           
+            % Go through sessions if CV is 
+            % not to run across sessions 
+            for se = 1 : length(sessions)
 
-            session = sessions(se);
+                session = sessions(se);
+                
+                path_data_out = path.model;
+                path_img_out = strcat('IMAGES\', path_data_out);                
 
-            % Fit model for current 
-            % CV method 
-            s05_fit_models;
+                % Fit model for current 
+                % CV method 
+                s05_fit_models;
 
-        end % sessions
-        
-    end 
+            end % sessions  
+            
+   end
     
 end
 
@@ -767,39 +782,51 @@ end
 % -------------------------------------------------
 if flag.report_models
     
-    % Define input/output data/paths  
-    path_eeg_in = path.eeg_feature;
-    path_bold_in = path.bold_preproc;
-    path_data_in = path.model;
-    
-    path_img_out = strcat('IMAGES\', path_data_in);
-    path_report_out = path.report;
+    path_report = path.report;
     
     % Create the report object
-    my_report = strcat('RESULTS -', ...
-        " ", upper(reg_models), ' MODELS');
+    my_report = strcat('RESULTS -', " ", ...
+        upper(reg_models), ' MODELS');
     R = Report(my_report, 'pdf');
     R.Layout.Landscape = true;
-    R.OutputPath = strcat(path_report_out, ...
-        '\', my_report);
-    open(R)
+    R.OutputPath = strcat(path_report, '\', my_report);
+    open(R)    
     
-    % Go through sessions if CV is 
-    % not to run across sessions 
-    for se = 1 : length(sessions)
+    switch cv_method
+        
+        case 'one_class'
+            
+            path_data_in = path.model_one_class;
+            path_img_out = strcat('IMAGES\', path_data_in);
+            
+            % Run script
+            s05_report_one_class_models
+            
+        otherwise 
+    
+            % Define input/output data/paths  
+            path_eeg_in = path.eeg_feature;
+            path_bold_in = path.bold_preproc;
+            path_data_in = path.model;
 
-        session = sessions(se);
+            path_img_out = strcat('IMAGES\', path_data_in);
 
-        % Run script 
-        s05_report_models;
+            % Go through sessions if CV is 
+            % not to run across sessions 
+            for se = 1 : length(sessions)
 
-    end % sessions 
+                session = sessions(se);
 
-    close(R)
+                % Run script 
+                s05_report_models;
+
+            end % sessions 
+
+            close(R);
+            
+    end
     
 end
-
-% CODE NEEDS TO BE CHANGED FROM HERE TO ACCOMODATE RUNS 
 
 % -------------------------------------------------
 % Group Statistics of EEG-BOLD Models 
